@@ -173,6 +173,14 @@ export default function App() {
     showToast(`${name} adicionado! 🎉`);
   };
   const changePassword = async (id, pw) => { await supabase.from("players").update({ password: pw }).eq("id", id); showToast("Password alterada ✓"); };
+  const updateProfile = async (id, newName, newPassword) => {
+    const updates = {};
+    if (newName.trim()) updates.name = newName.trim();
+    if (newPassword.trim()) updates.password = newPassword.trim();
+    if (Object.keys(updates).length === 0) return;
+    await supabase.from("players").update(updates).eq("id", id);
+    showToast("Perfil atualizado ✓");
+  };
   const resetGame = async () => {
     await supabase.from("players").delete().eq("is_guest", true);
     await supabase.from("players").update({ status: "out", paid: false, confirmed_at: null }).eq("is_guest", false);
@@ -201,7 +209,7 @@ export default function App() {
       <style>{globalCss}</style>
       {toast && <div className={`toast toast-${toast.type}`}>{toast.msg}</div>}
       {view === "login"  && <LoginView  {...shared} onLogin={handleLogin} showToast={showToast} />}
-      {view === "player" && liveUser && <PlayerView {...shared} player={liveUser} onToggle={() => togglePresence(liveUser.id)} onAddGuest={n => addGuest(n, liveUser.id)} onRemoveGuest={removeGuest} onLogout={handleLogout} />}
+      {view === "player" && liveUser && <PlayerView {...shared} player={liveUser} onToggle={() => togglePresence(liveUser.id)} onAddGuest={n => addGuest(n, liveUser.id)} onRemoveGuest={removeGuest} onUpdateProfile={(name, pw) => updateProfile(liveUser.id, name, pw)} onLogout={handleLogout} />}
       {view === "admin"  && liveUser && <AdminView  {...shared} currentUser={liveUser} adminTab={adminTab} setAdminTab={setAdminTab} onTogglePaid={togglePaid} onRemovePlayer={removePlayer} onAddPlayer={addPlayer} onChangePassword={changePassword} onResetGame={resetGame} onTogglePresence={togglePresence} onAddGuest={n => addGuest(n, liveUser.id)} onRemoveGuest={removeGuest} onUpdateGameInfo={updateGameInfo} onLogout={handleLogout} showToast={showToast} />}
     </div>
   );
@@ -278,11 +286,16 @@ function LoginView({ gameInfo, cdStr, confirmed, notYet, waiting, members, onLog
 }
 
 // ─── PLAYER VIEW ──────────────────────────────────────────────────────────────
-function PlayerView({ gameInfo, cdStr, confirmed, waiting, notYet, guests, spotsLeft, player, onToggle, onAddGuest, onRemoveGuest, onLogout }) {
+function PlayerView({ gameInfo, cdStr, confirmed, waiting, notYet, guests, spotsLeft, player, onToggle, onAddGuest, onRemoveGuest, onUpdateProfile, onLogout }) {
   const isIn = player.status === "in", isWait = player.status === "wait";
   const waitPos = waiting.findIndex(p => p.id === player.id) + 1;
   const myGuests = guests.filter(g => g.invited_by_id === player.id);
   const [guestName, setGuestName] = useState("");
+  const [showProfile, setShowProfile] = useState(false);
+  const [newName, setNewName] = useState(player.name);
+  const [newPw, setNewPw] = useState("");
+  const [newPwConfirm, setNewPwConfirm] = useState("");
+  const [showPw, setShowPw] = useState(false);
   return (
     <div className="screen">
       <FieldHeader gameInfo={gameInfo} cdStr={cdStr}>
@@ -293,7 +306,38 @@ function PlayerView({ gameInfo, cdStr, confirmed, waiting, notYet, guests, spots
         </div>
       </FieldHeader>
       <div className="body">
-        <div className="topbar"><span className="topbar-name">Olá, <strong>{player.name}</strong></span><button className="icon-ghost" onClick={onLogout}><Icon name="logout" size={16}/></button></div>
+        <div className="topbar">
+          <span className="topbar-name">Olá, <strong>{player.name}</strong></span>
+          <div style={{display:"flex",gap:4}}>
+            <button className="icon-ghost" onClick={() => setShowProfile(v => !v)} title="O meu perfil">
+              <Icon name="key" size={16}/>
+            </button>
+            <button className="icon-ghost" onClick={onLogout}><Icon name="logout" size={16}/></button>
+          </div>
+        </div>
+
+        {showProfile && (
+          <div className="card-section" style={{marginBottom:14}}>
+            <p className="section-label"><Icon name="key" size={12}/> O MEU PERFIL</p>
+            <label className="field-label">Nome</label>
+            <input className="text-input" style={{marginBottom:8}} value={newName} onChange={e => setNewName(e.target.value)} placeholder="O teu nome..." />
+            <label className="field-label">Nova password</label>
+            <div className="pw-row" style={{marginBottom:8}}>
+              <input className={`text-input`} type={showPw?"text":"password"} value={newPw} onChange={e => setNewPw(e.target.value)} placeholder="Nova password..." />
+              <button className="icon-ghost" onClick={() => setShowPw(v=>!v)}><Icon name={showPw?"eyeoff":"eye"} size={15}/></button>
+            </div>
+            <label className="field-label">Confirmar password</label>
+            <input className="text-input" style={{marginBottom:10}} type={showPw?"text":"password"} value={newPwConfirm} onChange={e => setNewPwConfirm(e.target.value)} placeholder="Repetir password..." />
+            <button className="btn-primary" style={{width:"100%",justifyContent:"center"}} onClick={() => {
+              if (newPw && newPw !== newPwConfirm) { alert("As passwords não coincidem!"); return; }
+              onUpdateProfile(newName, newPw);
+              setNewPw(""); setNewPwConfirm(""); setShowProfile(false);
+            }}>
+              <Icon name="check" size={15}/> GUARDAR ALTERAÇÕES
+            </button>
+          </div>
+        )}
+
         <div className={`status-banner sb-${isIn?"in":isWait?"wait":"out"}`}>
           <span className="sb-icon">{isIn?"✅":isWait?"⏳":"⚽"}</span>
           <div><div className="sb-title">{isIn?"Confirmado!":isWait?`Lista de espera #${waitPos}`:"Ainda não respondeste"}</div><div className="sb-sub">{isIn?"Estás dentro do jogo":isWait?"Aguarda por uma vaga":`${spotsLeft} vagas disponíveis`}</div></div>
