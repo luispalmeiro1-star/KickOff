@@ -401,9 +401,26 @@ function AdminView({ gameInfo, cdStr, confirmed, waiting, notYet, guests, spotsL
   const [editDate, setEditDate]     = useState(gameInfo.date);
   const [editTime, setEditTime]     = useState(gameInfo.time);
   const [edited, setEdited]         = useState(false);
+  const [showProfile, setShowProfile] = useState(false);
+  const [profileName, setProfileName] = useState(currentUser.name);
+  const [profilePw, setProfilePw]     = useState("");
+  const [profilePwConfirm, setProfilePwConfirm] = useState("");
+  const [showPw, setShowPw]           = useState(false);
   useEffect(() => { setEditLoc(gameInfo.location); setEditDate(gameInfo.date); setEditTime(gameInfo.time); }, [gameInfo]);
   const totalPaid = confirmed.filter(p => p.paid).length;
   const totalUnpaid = confirmed.filter(p => !p.paid).length;
+
+  const handleSaveProfile = () => {
+    if (profilePw && profilePw !== profilePwConfirm) { alert("As passwords não coincidem!"); return; }
+    onChangePassword && onChangePassword(currentUser.id, profilePw || currentUser.password);
+    if (profileName.trim() !== currentUser.name) {
+      supabase.from("players").update({ name: profileName.trim(), ...(profilePw ? { password: profilePw } : {}) }).eq("id", currentUser.id).then(() => onLogout());
+    } else if (profilePw) {
+      supabase.from("players").update({ password: profilePw }).eq("id", currentUser.id).then(() => onLogout());
+    }
+    setShowProfile(false);
+  };
+
   return (
     <div className="screen">
       <FieldHeader gameInfo={gameInfo} cdStr={cdStr}>
@@ -414,7 +431,32 @@ function AdminView({ gameInfo, cdStr, confirmed, waiting, notYet, guests, spotsL
         </div>
       </FieldHeader>
       <div className="body">
-        <div className="topbar"><span className="topbar-name"><Icon name="shield" size={14}/> <strong>{currentUser.name}</strong> · Admin</span><button className="icon-ghost" onClick={onLogout}><Icon name="logout" size={16}/></button></div>
+        <div className="topbar">
+          <span className="topbar-name"><Icon name="shield" size={14}/> <strong>{currentUser.name}</strong> · Admin</span>
+          <div style={{display:"flex",gap:4}}>
+            <button className="icon-ghost" onClick={() => setShowProfile(v => !v)} title="O meu perfil"><Icon name="key" size={16}/></button>
+            <button className="icon-ghost" onClick={onLogout}><Icon name="logout" size={16}/></button>
+          </div>
+        </div>
+
+        {showProfile && (
+          <div className="card-section" style={{marginBottom:14}}>
+            <p className="section-label"><Icon name="key" size={12}/> O MEU PERFIL</p>
+            <label className="field-label">Nome</label>
+            <input className="text-input" style={{marginBottom:8}} value={profileName} onChange={e => setProfileName(e.target.value)} />
+            <label className="field-label">Nova password</label>
+            <div className="pw-row" style={{marginBottom:8}}>
+              <input className="text-input" type={showPw?"text":"password"} value={profilePw} onChange={e => setProfilePw(e.target.value)} placeholder="Nova password..." />
+              <button className="icon-ghost" onClick={() => setShowPw(v=>!v)}><Icon name={showPw?"eyeoff":"eye"} size={15}/></button>
+            </div>
+            <label className="field-label">Confirmar password</label>
+            <input className="text-input" style={{marginBottom:10}} type={showPw?"text":"password"} value={profilePwConfirm} onChange={e => setProfilePwConfirm(e.target.value)} placeholder="Repetir password..." />
+            <button className="btn-primary" style={{width:"100%",justifyContent:"center"}} onClick={handleSaveProfile}>
+              <Icon name="check" size={15}/> GUARDAR E SAIR
+            </button>
+            <p style={{fontSize:11,color:"#6b7280",marginTop:6}}>💡 Após guardar volta a entrar com os novos dados.</p>
+          </div>
+        )}
         <div className="money-row">
           <div className="money-box green-box"><span className="money-num">{totalPaid*COST}€</span><span className="money-label">Recebido</span></div>
           <div className="money-box red-box"><span className="money-num">{totalUnpaid*COST}€</span><span className="money-label">Por receber</span></div>
