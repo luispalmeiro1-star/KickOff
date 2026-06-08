@@ -353,7 +353,7 @@ function ProfileSection({ player, onUpdateProfile, onLogout }) {
 }
 
 // ── LOGIN ────────────────────────────────────────────────────────────────────
-function LoginView({ gameInfo, cdStr, confirmed, notYet, waiting, members, viewingDate, setViewingDate, historyGame, isViewingHistory, effectiveDate, onLogin, showToast }) {
+function LoginView({ gameInfo, cdStr, confirmed, notYet, waiting, members, debts, viewingDate, setViewingDate, historyGame, isViewingHistory, effectiveDate, onLogin, showToast }) {
   const [selected, setSelected] = useState(null);
   const [password, setPassword] = useState("");
   const [showPw,   setShowPw]   = useState(false);
@@ -466,20 +466,27 @@ function PiggyBankCard({ piggybank, history }) {
 }
 
 // ── CONFIRMED LIST ───────────────────────────────────────────────────────────
-function ConfirmedList({ confirmed, onTogglePaid, isAdmin }) {
+function ConfirmedList({ confirmed, onTogglePaid, isAdmin, debts = [] }) {
   if (!confirmed.length) return <p className="empty-msg">Ninguém confirmou ainda</p>;
   return (
     <div className="player-list">
-      {confirmed.map((p, i) => (
-        <div key={p.id} className={`list-row ${p.is_guest ? "row-guest" : ""}`}>
-          <span className="list-num">{i+1}</span>
-          <div className={p.is_guest ? "av-guest" : "av-member"}>{p.name[0]}</div>
-          <div className="list-info"><span className="list-name">{p.name}</span>{p.is_guest && <span className="guest-sub">convidado de {p.invited_by}</span>}</div>
-          {isAdmin
-            ? <button className={`paid-btn ${p.paid ? "paid-yes" : "paid-no"}`} onClick={() => onTogglePaid(p.id)}>{p.paid ? <><Icon name="check" size={11}/> Pago</> : `Deve ${COST}€`}</button>
-            : <span className={`paid-chip ${p.paid ? "paid-yes" : "paid-no"}`}>{p.paid ? "Pago ✓" : `Deve ${COST}€`}</span>}
-        </div>
-      ))}
+      {confirmed.map((p, i) => {
+        const playerDebt = debts.filter(d => d.player_id === p.id).reduce((s, d) => s + Number(d.amount), 0);
+        return (
+          <div key={p.id} className={`list-row ${p.is_guest ? "row-guest" : ""}`}>
+            <span className="list-num">{i+1}</span>
+            <div className={p.is_guest ? "av-guest" : "av-member"}>{p.name[0]}</div>
+            <div className="list-info">
+              <span className="list-name">{p.name}</span>
+              {p.is_guest && <span className="guest-sub">convidado de {p.invited_by}</span>}
+              {playerDebt > 0 && <span style={{ fontSize: 10, color: "#dc2626", fontWeight: 700 }}>⚠️ Em dívida: {playerDebt}€</span>}
+            </div>
+            {isAdmin
+              ? <button className={`paid-btn ${p.paid ? "paid-yes" : "paid-no"}`} onClick={() => onTogglePaid(p.id)}>{p.paid ? <><Icon name="check" size={11}/> Pago</> : `Deve ${COST}€`}</button>
+              : <span className={`paid-chip ${p.paid ? "paid-yes" : "paid-no"}`}>{p.paid ? "Pago ✓" : `Deve ${COST}€`}</span>}
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -565,7 +572,7 @@ function PlayerView({ gameInfo, cdStr, confirmed, waiting, notYet, guests, spots
         </div>
 
         <p className="section-label"><Icon name="people" size={12}/> LISTA DO JOGO</p>
-        <ConfirmedList confirmed={confirmed} />
+        <ConfirmedList confirmed={confirmed} debts={debts} />
 
         {waiting.length > 0 && <>
           <p className="section-label" style={{ marginTop: 14 }}><Icon name="clock" size={12}/> LISTA DE ESPERA</p>
@@ -573,6 +580,28 @@ function PlayerView({ gameInfo, cdStr, confirmed, waiting, notYet, guests, spots
         </>}
 
         <PiggyBankCard piggybank={piggybank} history={history} />
+
+        {/* Dívidas públicas */}
+        {debts.length > 0 && (() => {
+          const debtsByPlayer = members
+            .map(m => ({ ...m, total: debts.filter(d => d.player_id === m.id).reduce((s, d) => s + Number(d.amount), 0) }))
+            .filter(m => m.total > 0);
+          if (debtsByPlayer.length === 0) return null;
+          return (
+            <div style={{ marginTop: 16 }}>
+              <p className="section-label"><Icon name="warn" size={12}/> DÍVIDAS EM ABERTO</p>
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                {debtsByPlayer.map(m => (
+                  <div key={m.id} style={{ display: "flex", alignItems: "center", gap: 10, background: m.id === player.id ? "#fff7ed" : "white", border: `1px solid ${m.id === player.id ? "#f97316" : "#d1fae5"}`, borderRadius: 10, padding: "10px 14px" }}>
+                    <div className="av-member" style={{ background: m.id === player.id ? "linear-gradient(135deg,#dc2626,#b91c1c)" : undefined }}>{m.name[0]}</div>
+                    <span style={{ flex: 1, fontSize: 13, fontWeight: 700, color: "#14532d" }}>{m.name}{m.id === player.id ? " (tu)" : ""}</span>
+                    <span style={{ fontFamily: "'Bebas Neue',cursive", fontSize: 20, color: "#dc2626" }}>{m.total}€</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        })()}
       </div>
     </div>
   );
@@ -637,7 +666,7 @@ function AdminView({ gameInfo, cdStr, confirmed, waiting, notYet, guests, spotsL
         {/* JOGO */}
         {adminTab === "jogo" && <>
           <p className="section-label">✅ CONFIRMADOS ({confirmed.length})</p>
-          <ConfirmedList confirmed={confirmed} onTogglePaid={onTogglePaid} isAdmin />
+          <ConfirmedList confirmed={confirmed} onTogglePaid={onTogglePaid} isAdmin debts={debts} />
           {waiting.length>0&&<><p className="section-label" style={{marginTop:14}}>⏳ LISTA DE ESPERA</p><div className="player-list">{waiting.map((p,i)=><div key={p.id} className="list-row"><span className="list-num">{i+1}</span><div className="av-wait">{p.name[0]}</div><span className="list-name">{p.name}</span></div>)}</div></>}
           {notYet.length>0&&<><p className="section-label" style={{marginTop:14}}>❓ SEM RESPOSTA ({notYet.length})</p><div className="player-list">{notYet.map(p=><div key={p.id} className="list-row"><div className="av-out">{p.name[0]}</div><span className="list-name">{p.name}</span></div>)}</div></>}
 
