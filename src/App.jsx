@@ -80,6 +80,43 @@ function getAvatar(player) {
 }
 
 // ── ICONS ────────────────────────────────────────────────────────────────────
+// ── TEAM ASSIGNMENT LOGIC ───────────────────────────────────────────────────
+function assignTeams(confirmed) {
+  const n = confirmed.length;
+  if (n === 0) return {};
+  const numTeams = n >= 15 ? 3 : 2;
+  const teams = Array.from({length: numTeams}, () => []);
+  const teamNames = ["A", "B", "C"];
+
+  // Separate GRs and polivalentes
+  const grs = shuffle(confirmed.filter(p => p.position === "GR"));
+  const pols = shuffle(confirmed.filter(p => p.position !== "GR"));
+
+  // Place one GR per team as anchor
+  grs.slice(0, numTeams).forEach((gr, i) => teams[i].push(gr));
+  // Extra GRs go into rest pool
+  const rest = shuffle([...pols, ...grs.slice(numTeams)]);
+
+  // Distribute rest to keep teams balanced
+  rest.forEach(p => {
+    // Find team with fewest players
+    const minLen = Math.min(...teams.map(t => t.length));
+    const candidates = teams.map((t,i) => ({t,i})).filter(({t}) => t.length === minLen);
+    const chosen = candidates[Math.floor(Math.random() * candidates.length)];
+    chosen.t.push(p);
+  });
+
+  // Build result map: playerId -> teamName or "SUB"
+  const result = {};
+  teams.forEach((team, ti) => {
+    const mainPlayers = team.slice(0, 5);
+    const subs = team.slice(5);
+    mainPlayers.forEach(p => { result[p.id] = teamNames[ti]; });
+    subs.forEach(p => { result[p.id] = "SUB"; });
+  });
+  return result;
+}
+
 const Icon = ({name,size=18}) => {
   const icons = {
     ball:    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 2a10 10 0 0 1 6.88 2.75L12 12 5.12 4.75A10 10 0 0 1 12 2z"/><path d="M2.5 8.5l9.5 3.5 9.5-3.5"/><path d="M12 12v10"/></svg>,
@@ -189,26 +226,44 @@ export default function App() {
   };
   const handleLogout = ()=>{setCurrentUser(null);setView("login");setViewingDate(null);};
 
+  const reassignAllTeams = async(updatedPlayers) => {
+    const newConfirmed = updatedPlayers.filter(pl=>pl.status==="in");
+    const teamMap = assignTeams(newConfirmed);
+    const finalPlayers = updatedPlayers.map(pl=>({...pl, team: teamMap[pl.id]||null}));
+    setPlayers(finalPlayers);
+    for(const pl of finalPlayers){
+      await supabase.from("players").update({team: teamMap[pl.id]||null}).eq("id",pl.id);
+    }
+    return finalPlayers;
+  };
+
   const togglePresence = async(playerId)=>{
     const p=players.find(pl=>pl.id===playerId); if(!p) return;
     let ns,na;
     if(p.status==="in"||p.status==="wait"){ns="out";na=null;}
     else if(confirmed.length<MAX_PLAYERS){ns="in";na=Date.now();}
     else{ns="wait";na=Date.now();showToast("Jogo cheio! ⏳","warn");}
-    // Update local state immediately
-    setPlayers(prev=>prev.map(pl=>pl.id===playerId?{...pl,status:ns,confirmed_at:na,paid:false}:pl));
     await supabase.from("players").update({status:ns,confirmed_at:na,paid:false}).eq("id",playerId);
+    const updated = players.map(pl=>pl.id===playerId?{...pl,status:ns,confirmed_at:na,paid:false}:pl);
+    await reassignAllTeams(updated);
   };
   const addGuest = async(guestName,invitedById)=>{
     if(!guestName.trim()) return;
     const inviter=players.find(p=>p.id===invitedById);
     if(!inviter||confirmed.length>=MAX_PLAYERS){showToast("Jogo cheio!","err");return;}
-    const newGuest={id:Date.now(),name:guestName.trim(),is_admin:false,password:null,paid:false,status:"in",is_guest:true,invited_by:inviter.name,invited_by_id:invitedById,confirmed_at:Date.now()};
-    setPlayers(prev=>[...prev,newGuest]);
-    await supabase.from("players").insert({name:guestName.trim(),is_admin:false,password:null,paid:false,status:"in",is_guest:true,invited_by:inviter.name,invited_by_id:invitedById,confirmed_at:Date.now()});
+    const {data:inserted} = await supabase.from("players").insert({name:guestName.trim(),is_admin:false,password:null,paid:false,status:"in",is_guest:true,invited_by:inviter.name,invited_by_id:invitedById,confirmed_at:Date.now()}).select().single();
+    if(inserted){
+      const updated = [...players, inserted];
+      await reassignAllTeams(updated);
+    }
     showToast(`${guestName} adicionado! 🎉`);
   };
-  const removeGuest    = async(id)=>{setPlayers(prev=>prev.filter(p=>p.id!==id));await supabase.from("players").delete().eq("id",id);showToast("Convidado removido");};
+  const removeGuest    = async(id)=>{
+    await supabase.from("players").delete().eq("id",id);
+    const updated = players.filter(p=>p.id!==id);
+    await reassignAllTeams(updated);
+    showToast("Convidado removido");
+  };
   const togglePaid     = async(id)=>{const p=players.find(pl=>pl.id===id);setPlayers(prev=>prev.map(pl=>pl.id===id?{...pl,paid:!p.paid}:pl));await supabase.from("players").update({paid:!p.paid}).eq("id",id);showToast("Pagamento atualizado ✓");};
   const removePlayer   = async(id)=>{setPlayers(prev=>prev.filter(p=>p.id!==id));await supabase.from("players").delete().eq("id",id);showToast("Jogador removido");};
   const changePassword = async(id,pw)=>{await supabase.from("players").update({password:pw}).eq("id",id);};
@@ -231,8 +286,9 @@ export default function App() {
     showToast("Perfil atualizado ✓");
   };
   const updatePosition = async(id, pos) => {
-    setPlayers(prev=>prev.map(p=>p.id===id?{...p,position:pos}:p));
     await supabase.from("players").update({position: pos}).eq("id", id);
+    const updated = players.map(p=>p.id===id?{...p,position:pos}:p);
+    await reassignAllTeams(updated);
     showToast("Posição atualizada ✓");
   };
   const resetGame = async(winnerTeam)=>{
@@ -408,6 +464,69 @@ function LoginView({gameInfo,cdStr,confirmed,notYet,waiting,members,viewingDate,
         </>}
         {isViewingHistory&&<div style={{textAlign:"center",paddingTop:20}}><p style={{color:"#6b7280",fontSize:13}}>A ver histórico — <button style={{background:"none",border:"none",color:"#16a34a",fontWeight:700,cursor:"pointer"}} onClick={()=>setViewingDate(null)}>voltar ao atual</button></p></div>}
       </div>
+    </div>
+  );
+}
+
+// ── AUTO TEAMS DISPLAY ───────────────────────────────────────────────────────
+function AutoTeamsDisplay({confirmed, players=[]}) {
+  if(!confirmed.length) return null;
+  
+  const teamNames = ["A","B","C"];
+  const teamColors = TEAM_COLORS;
+  
+  // Group by team
+  const groups = {};
+  confirmed.forEach(p => {
+    const pl = (players||[]).find(pl=>pl.id===p.id)||p;
+    const team = pl.team || "SUB";
+    if(!groups[team]) groups[team] = [];
+    groups[team].push({...p, position: pl.position});
+  });
+
+  const activeTeams = teamNames.filter(t => groups[t]?.length > 0);
+  const subs = groups["SUB"] || [];
+
+  if(activeTeams.length === 0) return (
+    <div style={{background:"#f0fdf4",borderRadius:12,padding:"12px",textAlign:"center",fontSize:13,color:"#6b7280"}}>
+      As equipas formam-se automaticamente quando os jogadores confirmam presença.
+    </div>
+  );
+
+  return (
+    <div style={{display:"flex",flexDirection:"column",gap:10}}>
+      {activeTeams.map((teamName, ti) => {
+        const color = teamColors[ti];
+        const team = groups[teamName] || [];
+        return (
+          <div key={teamName} style={{background:color.bg,border:`2px solid ${color.border}`,borderRadius:12,padding:"10px 12px"}}>
+            <div style={{fontSize:11,fontWeight:800,color:color.text,letterSpacing:1,marginBottom:8}}>
+              EQUIPA {teamName}
+            </div>
+            <div style={{display:"flex",flexWrap:"wrap",gap:5}}>
+              {team.map(p => (
+                <div key={p.id} style={{display:"flex",alignItems:"center",gap:5,background:p.position==="GR"?"#eff6ff":"white",borderRadius:20,padding:"4px 10px",fontSize:12,fontWeight:700,color:color.text,border:`1px solid ${p.position==="GR"?"#2563eb":color.border}`}}>
+                  <Avatar player={(players||[]).find(pl=>pl.id===p.id)||p} size={18}/>
+                  {p.name}{p.position==="GR"&&<span style={{fontSize:11}}>🧤</span>}
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      })}
+      {subs.length > 0 && (
+        <div style={{background:"#f8fafc",border:"1px dashed #94a3b8",borderRadius:12,padding:"10px 12px"}}>
+          <div style={{fontSize:11,fontWeight:800,color:"#64748b",letterSpacing:1,marginBottom:6}}>SUPLENTES</div>
+          <div style={{display:"flex",flexWrap:"wrap",gap:5}}>
+            {subs.map(p=>(
+              <div key={p.id} style={{display:"flex",alignItems:"center",gap:5,background:"white",borderRadius:20,padding:"4px 10px",fontSize:12,fontWeight:700,color:"#64748b",border:"1px solid #e2e8f0"}}>
+                <Avatar player={(players||[]).find(pl=>pl.id===p.id)||p} size={18}/>
+                {p.name}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -771,17 +890,14 @@ function PlayerView({gameInfo,cdStr,confirmed,waiting,notYet,guests,spotsLeft,pl
           <MvpVote confirmed={confirmed} mvpVotes={mvpVotes} currentUserId={player.id} gameDate={gameInfo.date} onVote={onVoteMvp}/>
         )}
 
-        {/* Sorteio */}
+        {/* Equipas automáticas */}
         {confirmed.length>=MIN_PLAYERS&&(
           <div className="card-section" style={{marginBottom:14}}>
-            <p className="section-label"><Icon name="shuffle" size={12}/> SORTEIO DE EQUIPAS</p>
+            <p className="section-label"><Icon name="people" size={12}/> EQUIPAS</p>
             <div style={{background:"#f0fdf4",borderRadius:10,padding:"8px 12px",marginBottom:10,fontSize:12,color:"#166534",fontWeight:600}}>
-              {confirmed.length>=15?"🏆 3 equipas de 5":`⚽ 2 equipas${confirmed.length%2!==0?" + 1 suplente":""}`}
+              {confirmed.length>=15?"🏆 3 equipas de 5":`⚽ 2 equipas${confirmed.length%2!==0?" + suplentes":""}`}
             </div>
-            <button className="btn-primary" style={{width:"100%",justifyContent:"center",marginBottom:teams?10:0}} onClick={()=>{setTeams(makeTeams(confirmed,players));setWinnerTeam(null);}}>
-              <Icon name="shuffle" size={14}/> {teams?"SORTEAR NOVAMENTE":"SORTEAR EQUIPAS"}
-            </button>
-            {teams&&<TeamsDisplay teams={teams} players={players} winnerTeam={winnerTeam} setWinnerTeam={setWinnerTeam}/>}
+            <AutoTeamsDisplay confirmed={confirmed} players={players}/>
           </div>
         )}
 
@@ -925,18 +1041,24 @@ function AdminView({gameInfo,cdStr,confirmed,waiting,notYet,guests,spotsLeft,pla
 
         {/* EQUIPAS */}
         {adminTab==="equipas"&&<>
-          <p className="section-label"><Icon name="shuffle" size={12}/> SORTEIO</p>
+          <p className="section-label"><Icon name="people" size={12}/> EQUIPAS AUTOMÁTICAS</p>
           {confirmed.length<MIN_PLAYERS
             ?<div className="guest-locked">⚠️ Precisas de {MIN_PLAYERS} confirmados. ({confirmed.length}/{MIN_PLAYERS})</div>
             :<>
               <div style={{background:"#f0fdf4",borderRadius:10,padding:"8px 12px",marginBottom:10,fontSize:12,color:"#166534",fontWeight:600}}>
-                {confirmed.length>=15?"🏆 3 equipas de 5":`⚽ 2 equipas${confirmed.length%2!==0?" + 1 suplente":""}`}
+                {confirmed.length>=15?"🏆 3 equipas de 5":`⚽ 2 equipas${confirmed.length%2!==0?" + suplentes":""}`}
               </div>
-              <button className="btn-primary" style={{width:"100%",justifyContent:"center",marginBottom:12}} onClick={()=>{setTeams(makeTeams(confirmed,players));setWinnerTeam(null);}}>
-                <Icon name="shuffle" size={14}/> {teams?"SORTEAR NOVAMENTE":"SORTEAR EQUIPAS"}
-              </button>
-              {teams&&<TeamsDisplay teams={teams} players={players} onVoteWinner={(t)=>setWinnerTeam(t)} winnerTeam={winnerTeam} setWinnerTeam={setWinnerTeam}/>}
-              {winnerTeam&&<div style={{background:"#fef3c7",borderRadius:10,padding:"10px 14px",marginTop:10,fontSize:13,fontWeight:700,color:"#92400e",textAlign:"center"}}>🏆 Equipa vencedora: {winnerTeam}</div>}
+              <AutoTeamsDisplay confirmed={confirmed} players={players}/>
+              {/* Equipa vencedora */}
+              <p className="section-label" style={{marginTop:14}}><Icon name="trophy" size={12}/> EQUIPA VENCEDORA</p>
+              <div style={{display:"flex",gap:8}}>
+                {["A","B","C"].slice(0,confirmed.length>=15?3:2).map(t=>(
+                  <button key={t} onClick={()=>setWinnerTeam(winnerTeam===t?null:t)} style={{flex:1,padding:"10px",borderRadius:10,border:`2px solid ${winnerTeam===t?"#d97706":"#d1fae5"}`,background:winnerTeam===t?"#fef3c7":"white",fontWeight:800,fontSize:13,cursor:"pointer",color:winnerTeam===t?"#92400e":"#6b7280"}}>
+                    {winnerTeam===t?"🏆":""} Equipa {t}
+                  </button>
+                ))}
+              </div>
+              {winnerTeam&&<div style={{background:"#fef3c7",borderRadius:10,padding:"10px 14px",marginTop:8,fontSize:13,fontWeight:700,color:"#92400e",textAlign:"center"}}>🏆 Equipa {winnerTeam} venceu!</div>}
             </>}
           <p className="section-label" style={{marginTop:14}}><Icon name="guest" size={12}/> ADICIONAR CONVIDADO</p>
           {spotsLeft===0?<div className="guest-locked">🔒 Jogo cheio</div>:(
