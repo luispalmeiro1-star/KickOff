@@ -364,6 +364,27 @@ export default function App() {
   );
 }
 
+// ── EXPANDABLE LIST ──────────────────────────────────────────────────────────
+function ExpandableList({confirmed}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div style={{marginTop:4}}>
+      <button onClick={()=>setOpen(v=>!v)} style={{background:"rgba(0,0,0,0.2)",border:"none",borderRadius:20,padding:"3px 10px",color:"rgba(255,255,255,0.9)",fontSize:10,fontWeight:700,cursor:"pointer",display:"flex",alignItems:"center",gap:5}}>
+        ✓ {confirmed.length} confirmados {open?"▲":"▼"}
+      </button>
+      {open&&(
+        <div style={{display:"flex",flexWrap:"wrap",gap:3,marginTop:6}}>
+          {confirmed.map(p=>(
+            <span key={p.id} style={{background:p.is_guest?"rgba(124,58,237,0.3)":"rgba(0,0,0,0.25)",borderRadius:20,padding:"2px 7px",fontSize:10,color:p.is_guest?"#c4b5fd":"rgba(255,255,255,0.85)",fontWeight:600}}>
+              {p.name}{p.is_guest?" 👤":""}
+            </span>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── FIELD HEADER ─────────────────────────────────────────────────────────────
 function FieldHeader({gameInfo,cdStr,confirmed,notYet,waiting,viewingDate,setViewingDate,historyGame,isViewingHistory,effectiveDate,darkMode,setDarkMode,extraRight}) {
   const pct=Math.round((confirmed.length/MAX_PLAYERS)*100);
@@ -414,15 +435,7 @@ function FieldHeader({gameInfo,cdStr,confirmed,notYet,waiting,viewingDate,setVie
               {notYet&&notYet.length>0&&<span className="pct-label muted">? {notYet.length}</span>}
               {waiting.length>0&&<span className="pct-label yellow">⏳ {waiting.length}</span>}
             </div>
-            {confirmed.length>0&&(
-              <div style={{display:"flex",flexWrap:"wrap",gap:3}}>
-                {confirmed.map(p=>(
-                  <span key={p.id} style={{background:p.is_guest?"rgba(124,58,237,0.3)":"rgba(0,0,0,0.25)",borderRadius:20,padding:"2px 7px",fontSize:10,color:p.is_guest?"#c4b5fd":"rgba(255,255,255,0.85)",fontWeight:600}}>
-                    {p.name}{p.is_guest?" 👤":""}
-                  </span>
-                ))}
-              </div>
-            )}
+            {confirmed.length>0&&<ExpandableList confirmed={confirmed}/>}
           </>
         )}
       </div>
