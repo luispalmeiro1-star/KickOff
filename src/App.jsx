@@ -430,9 +430,9 @@ function TeamsDisplay({teams=[],players=[],onVoteWinner,winnerTeam,setWinnerTeam
               {main.map(p=>{
                 const pl=(players||[]).find(pl=>pl.id===p.id)||p;
                 return (
-                  <div key={p.id} style={{display:"flex",alignItems:"center",gap:5,background:"white",borderRadius:20,padding:"3px 10px",fontSize:12,fontWeight:700,color:color.text,border:`1px solid ${color.border}`}}>
+                  <div key={p.id} style={{display:"flex",alignItems:"center",gap:5,background:pl.position==="GR"?"#eff6ff":"white",borderRadius:20,padding:"3px 10px",fontSize:12,fontWeight:700,color:color.text,border:`1px solid ${pl.position==="GR"?"#2563eb":color.border}`}}>
                     <Avatar player={pl} size={18}/>
-                    {p.name}
+                    {p.name}{pl.position==="GR"&&<span style={{fontSize:11}}>🧤</span>}
                   </div>
                 );
               })}
