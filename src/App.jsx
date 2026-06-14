@@ -381,7 +381,7 @@ function GroupStatusCard({confirmed, notYet, members, players=[]}) {
   else if (almostFull) messages.push({ icon: "🔥", text: `Lotação quase completa — só faltam ${15 - confirmed.length}!`, color: "#d97706", bg: "#fef3c7" });
   if (!hasEnoughGRs && confirmed.length >= 6) messages.push({ icon: "⚠️", text: `Faltam guarda-redes! Só ${grs.length} GR confirmado${grs.length !== 1 ? "s" : ""}`, color: "#dc2626", bg: "#fee2e2" });
   if (teamsReady && !isFull) messages.push({ icon: "✅", text: "Equipas prontas para jogar!", color: "#16a34a", bg: "#dcfce7" });
-  if (notYet.length > 0) messages.push({ icon: "📢", text: `${notYet.length} jogador${notYet.length !== 1 ? "es" : ""} ainda não respondeu${notYet.length !== 1 ? "ram" : ""}`, color: "#6b7280", bg: "#f1f5f9" });
+  if (notYet.length > 0) messages.push({ icon: "📢", text: `${notYet.length} jogador${notYet.length !== 1 ? "es" : ""} ainda não ${notYet.length !== 1 ? "responderam" : "respondeu"}`, color: "#6b7280", bg: "#f1f5f9" });
   if (confirmed.length < 6) messages.push({ icon: "😴", text: "Ainda poucos confirmados — partilha com o grupo!", color: "#7c3aed", bg: "#ede9fe" });
 
   if (messages.length === 0) return null;
