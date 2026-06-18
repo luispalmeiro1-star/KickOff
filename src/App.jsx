@@ -383,6 +383,71 @@ export default function App() {
   );
 }
 
+// ── EXPANDABLE RANKING ───────────────────────────────────────────────────────
+function ExpandableRanking({ranked=[], mvpCounts={}, totalGames=0, currentPlayer, darkMode}) {
+  const [expandedId, setExpandedId] = useState(null);
+  const dm = darkMode;
+
+  return (
+    <div style={{display:"flex",flexDirection:"column",gap:6,marginBottom:14}}>
+      {ranked.map((p,i)=>{
+        const isOpen = expandedId === p.id;
+        const isMe = p.id === currentPlayer?.id;
+        const pctBar = ranked[0].total_games>0 ? Math.round(((p.total_games||0)/(ranked[0].total_games||1))*100) : 0;
+        const mvps = mvpCounts[p.name]||0;
+        const pPct = totalGames>0 ? Math.round(((p.total_games||0)/totalGames)*100) : 0;
+        const medal = i===0?"🥇":i===1?"🥈":i===2?"🥉":`${i+1}`;
+
+        return (
+          <div key={p.id} style={{background:isMe?(dm?"#1a2e1a":"#f0fdf4"):(dm?"#111":"white"),border:isMe?"2px solid #16a34a":`1px solid ${dm?"#333":"#d1fae5"}`,borderRadius:12,overflow:"hidden",transition:"all 0.2s"}}>
+            {/* Closed row */}
+            <div style={{display:"flex",alignItems:"center",gap:8,padding:"10px 12px",cursor:"pointer"}} onClick={()=>setExpandedId(isOpen?null:p.id)}>
+              <span style={{fontSize:12,fontWeight:800,color:i===0?"#d97706":i===1?"#94a3b8":i===2?"#b45309":"#9ca3af",width:18,flexShrink:0}}>{medal}</span>
+              <Avatar player={p} size={28}/>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{fontSize:13,fontWeight:700,color:dm?"white":"#14532d"}}>{p.name}{isMe?" (tu)":""}</div>
+                <div style={{fontSize:10,color:"#6b7280",display:"flex",gap:8,marginTop:2}}>
+                  <span>⚽ {p.total_games||0}</span>
+                  {mvps>0&&<span>⭐ {mvps}</span>}
+                  <span>📈 {pPct}%</span>
+                </div>
+              </div>
+              <div style={{display:"flex",alignItems:"center",gap:6,flexShrink:0}}>
+                {(p.current_streak||0)>1&&<span style={{fontSize:10,color:"#dc2626",fontWeight:700}}>🔥{p.current_streak}</span>}
+                <span style={{fontSize:11,color:"#6b7280"}}>{isOpen?"▲":"▼"}</span>
+              </div>
+            </div>
+
+            {/* Progress bar always visible */}
+            <div style={{height:3,background:dm?"#222":"#f0fdf4",margin:"0 12px 8px 50px",borderRadius:99,overflow:"hidden"}}>
+              <div style={{width:`${pctBar}%`,height:"100%",background:"linear-gradient(90deg,#16a34a,#4ade80)",borderRadius:99}}/>
+            </div>
+
+            {/* Expanded content */}
+            {isOpen&&(
+              <div style={{padding:"0 12px 12px 50px",display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+                {[
+                  {label:"🔥 Série Atual", value:`${p.current_streak||0} jogos`},
+                  {label:"🏆 Melhor Série", value:`${p.best_streak||0} jogos`},
+                  {label:"💰 Total Pago", value:`${p.total_paid||0}€`},
+                  {label:"🧤 Posição", value:p.position==="GR"?"Guarda-Redes":"Polivalente"},
+                  {label:"⭐ MVPs", value:`${mvps} vez${mvps!==1?"es":"ez"}`},
+                  {label:"📈 Presença", value:`${pPct}%`},
+                ].map((s,si)=>(
+                  <div key={si} style={{background:dm?"#0a1a0a":"#f0fdf4",borderRadius:8,padding:"8px 10px"}}>
+                    <div style={{fontSize:10,color:"#6b7280",marginBottom:2}}>{s.label}</div>
+                    <div style={{fontSize:13,fontWeight:800,color:dm?"white":"#14532d"}}>{s.value}</div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 // ── HALL OF FAME MVP ─────────────────────────────────────────────────────────
 function HallOfFameMVP({history=[], members=[]}) {
   // All-time MVP counts
@@ -902,32 +967,7 @@ function StatsView({members=[],history=[],debts=[],mvpVotes=[],piggybank=0,playe
         </div>
 
         <p className="section-label"><Icon name="trophy" size={12}/> RANKING DE PRESENÇAS</p>
-        <div className="player-list" style={{marginBottom:14}}>
-          {ranked.map((p,i)=>{
-            const pctBar=ranked[0].total_games>0?Math.round(((p.total_games||0)/(ranked[0].total_games||1))*100):0;
-            const mvps=mvpCounts[p.name]||0;
-            const pPct=totalGames>0?Math.round(((p.total_games||0)/totalGames)*100):0;
-            return (
-              <div key={p.id} className="list-row" style={{background:p.id===player.id?(dm?"#1a2e1a":"#f0fdf4"):(dm?"#111":"white"),border:p.id===player.id?"2px solid #16a34a":"1px solid #d1fae5",flexDirection:"column",alignItems:"stretch",gap:6}}>
-                <div style={{display:"flex",alignItems:"center",gap:8}}>
-                  <span style={{fontSize:12,fontWeight:800,color:i===0?"#d97706":i===1?"#94a3b8":i===2?"#b45309":"#9ca3af",width:18,flexShrink:0}}>{i===0?"🥇":i===1?"🥈":i===2?"🥉":`${i+1}`}</span>
-                  <Avatar player={p} size={28}/>
-                  <div className="list-info">
-                    <span className="list-name" style={{color:dm?"white":"#14532d"}}>{p.name}{p.id===player.id?" (tu)":""}</span>
-                    <span style={{fontSize:10,color:"#6b7280"}}>{p.total_games||0} jogos · {pPct}% {mvps>0?`· ⭐${mvps}`:""}</span>
-                  </div>
-                  <div style={{textAlign:"right",flexShrink:0}}>
-                    <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:16,color:"#16a34a"}}>{p.total_paid||0}€</div>
-                    {(p.current_streak||0)>1&&<div style={{fontSize:10,color:"#dc2626",fontWeight:700}}>🔥{p.current_streak}</div>}
-                  </div>
-                </div>
-                <div style={{height:4,background:dm?"#333":"#f0fdf4",borderRadius:99,overflow:"hidden",marginLeft:26}}>
-                  <div style={{width:`${pctBar}%`,height:"100%",background:"linear-gradient(90deg,#16a34a,#4ade80)",borderRadius:99}}/>
-                </div>
-              </div>
-            );
-          })}
-        </div>
+        <ExpandableRanking ranked={ranked} mvpCounts={mvpCounts} totalGames={totalGames} currentPlayer={player} darkMode={dm}/>
 
         {/* Hall of Fame MVP */}
         <HallOfFameMVP history={history} members={members}/>
