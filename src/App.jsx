@@ -383,6 +383,70 @@ export default function App() {
   );
 }
 
+// ── HALL OF FAME MVP ─────────────────────────────────────────────────────────
+function HallOfFameMVP({history=[], members=[]}) {
+  // All-time MVP counts
+  const allTime={};
+  history.forEach(g=>{if(g.mvp_name) allTime[g.mvp_name]=(allTime[g.mvp_name]||0)+1;});
+  const ranked=Object.entries(allTime).sort((a,b)=>b[1]-a[1]);
+
+  // MVP atual (último jogo com mvp)
+  const lastMvp=history.find(g=>g.mvp_name);
+
+  // MVP do ano
+  const thisYear=new Date().getFullYear().toString();
+  const yearCounts={};
+  history.filter(g=>g.date?.startsWith(thisYear)).forEach(g=>{if(g.mvp_name) yearCounts[g.mvp_name]=(yearCounts[g.mvp_name]||0)+1;});
+  const mvpAno=Object.entries(yearCounts).sort((a,b)=>b[1]-a[1])[0];
+
+  if(ranked.length===0) return null;
+
+  return (
+    <div style={{marginBottom:14}}>
+      <p className="section-label">🏆 HALL OF FAME MVP</p>
+
+      {/* Top 3 destaques */}
+      <div style={{display:"flex",gap:8,marginBottom:10}}>
+        {lastMvp&&(
+          <div style={{flex:1,background:"#fef3c7",borderRadius:12,padding:"10px 12px",border:"1px solid #d97706"}}>
+            <div style={{fontSize:9,fontWeight:800,color:"#d97706",letterSpacing:1,marginBottom:4}}>👑 MVP ATUAL</div>
+            <div style={{fontSize:14,fontWeight:800,color:"#92400e"}}>{lastMvp.mvp_name}</div>
+            <div style={{fontSize:10,color:"#b45309"}}>{lastMvp.date}</div>
+          </div>
+        )}
+        {mvpAno&&(
+          <div style={{flex:1,background:"#dbeafe",borderRadius:12,padding:"10px 12px",border:"1px solid #2563eb"}}>
+            <div style={{fontSize:9,fontWeight:800,color:"#2563eb",letterSpacing:1,marginBottom:4}}>📅 MVP DO ANO</div>
+            <div style={{fontSize:14,fontWeight:800,color:"#1e3a8a"}}>{mvpAno[0]}</div>
+            <div style={{fontSize:10,color:"#1d4ed8"}}>{mvpAno[1]} vez{mvpAno[1]!==1?"es":""}</div>
+          </div>
+        )}
+      </div>
+
+      {/* Ranking completo */}
+      <div style={{background:"white",borderRadius:14,border:"1px solid #d1fae5",overflow:"hidden"}}>
+        {ranked.map(([name,count],i)=>{
+          const pl=members.find(m=>m.name===name);
+          const max=ranked[0][1];
+          return (
+            <div key={name} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 14px",borderBottom:i<ranked.length-1?"1px solid #f0fdf4":"none"}}>
+              <span style={{fontSize:14,width:20,flexShrink:0}}>{i===0?"🥇":i===1?"🥈":i===2?"🥉":`${i+1}`}</span>
+              {pl?<Avatar player={pl} size={28}/>:<div style={{width:28,height:28,borderRadius:"50%",background:"#d1fae5",display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:800,color:"#16a34a"}}>{name[0]}</div>}
+              <div style={{flex:1}}>
+                <div style={{fontSize:13,fontWeight:700,color:"#14532d"}}>{name}</div>
+                <div style={{height:4,background:"#f0fdf4",borderRadius:99,marginTop:4,overflow:"hidden"}}>
+                  <div style={{width:`${(count/max)*100}%`,height:"100%",background:"linear-gradient(90deg,#d97706,#fbbf24)",borderRadius:99}}/>
+                </div>
+              </div>
+              <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:22,color:"#d97706",flexShrink:0}}>{count}⭐</div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 // ── ROTATING HIGHLIGHTS ──────────────────────────────────────────────────────
 function RotatingHighlights({members, history, mvpVotes, confirmed, gameInfo}) {
   const [idx, setIdx] = useState(0);
@@ -864,6 +928,9 @@ function StatsView({members=[],history=[],debts=[],mvpVotes=[],piggybank=0,playe
             );
           })}
         </div>
+
+        {/* Hall of Fame MVP */}
+        <HallOfFameMVP history={history} members={members}/>
 
         <PiggyBankCard piggybank={piggybank} history={history}/>
       </div>
