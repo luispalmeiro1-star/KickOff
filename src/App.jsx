@@ -1340,11 +1340,11 @@ function AdminView({gameInfo,cdStr,confirmed,waiting,notYet,guests,spotsLeft,pla
                 <span style={{fontFamily:"'Bebas Neue',cursive",fontSize:22,color:"#dc2626"}}>{m.total}€</span>
               </div>
               {m.debts.map(d=>(
-                <div key={d.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",background:"white",borderRadius:8,padding:"6px 10px",marginBottom:5,border:"1px solid #fed7aa"}}>
-                  <span style={{fontSize:12,color:"#6b7280"}}>{d.description}</span>
-                  <div style={{display:"flex",alignItems:"center",gap:6}}>
-                    <span style={{fontSize:12,fontWeight:700,color:"#dc2626"}}>{d.amount}€</span>
-                    <button className="btn-primary" style={{padding:"4px 10px",fontSize:11}} onClick={()=>onPayDebt(d.id)}><Icon name="check" size={11}/> Pago</button>
+                <div key={d.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",background:"white",borderRadius:8,padding:"8px 10px",marginBottom:5,border:"1px solid #fed7aa"}}>
+                  <span style={{fontSize:12,color:"#6b7280"}}>{d.description} · <strong style={{color:"#dc2626"}}>{d.amount}€</strong></span>
+                  <div style={{display:"flex",gap:6}}>
+                    <div style={{background:"#fee2e2",borderRadius:8,padding:"5px 10px",fontSize:11,fontWeight:800,color:"#dc2626"}}>💸 Em dívida</div>
+                    <button style={{background:"#16a34a",border:"none",borderRadius:8,padding:"5px 10px",fontSize:11,fontWeight:800,color:"white",cursor:"pointer"}} onClick={()=>onPayDebt(d.id)}>✓ Recebido</button>
                   </div>
                 </div>
               ))}
