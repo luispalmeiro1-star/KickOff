@@ -340,7 +340,24 @@ export default function App() {
     showToast("Jogo fechado ✓");
   };
   const addDebt  = async(playerId,playerName,amount,desc)=>{await supabase.from("debts").insert({player_id:playerId,player_name:playerName,amount,description:desc});showToast("Dívida registada ✓");};
-  const payDebt  = async(debtId)=>{await supabase.from("debts").delete().eq("id",debtId);showToast("Dívida paga ✓");};
+  const payDebt  = async(debtId,amountPaid=null)=>{
+    const debt=debts.find(d=>d.id===debtId);
+    if(!debt) return;
+    const full = amountPaid===null || amountPaid>=Number(debt.amount);
+    if(full){
+      await supabase.from("debts").delete().eq("id",debtId);
+      showToast("Dívida paga ✓");
+    } else {
+      const remaining = Number(debt.amount)-Number(amountPaid);
+      await supabase.from("debts").update({amount:remaining}).eq("id",debtId);
+      showToast(`Pagamento parcial registado — restam ${remaining}€`);
+    }
+  };
+  const clearAllHistory = async()=>{
+    await supabase.from("game_history").delete().neq("id",0);
+    await supabase.from("debts").delete().neq("id",0);
+    showToast("Histórico e dívidas limpos ✓");
+  };
   const sendMessage = async(text,playerId,playerName)=>{
     if(!text.trim()) return;
     const tempMsg={id:Date.now(),player_id:playerId,player_name:playerName,message:text.trim(),created_at:new Date().toISOString()};
@@ -375,10 +392,40 @@ export default function App() {
       {toast&&<div className={`toast toast-${toast.type}`}>{toast.msg}</div>}
       {view==="login"   && <LoginView   {...shared} onLogin={handleLogin} showToast={showToast}/>}
       {view==="player"  && liveUser && <PlayerView  {...shared} player={liveUser} onToggle={()=>togglePresence(liveUser.id)} onAddGuest={n=>addGuest(n,liveUser.id)} onRemoveGuest={removeGuest} onUpdateProfile={(name,pw,color)=>updateProfile(liveUser.id,name,pw,color)} onVoteMvp={(vid)=>voteForMvp(liveUser.id,vid)} onSendMessage={(t)=>sendMessage(t,liveUser.id,liveUser.name)} onUpdatePosition={(pos)=>updatePosition(liveUser.id,pos)} onLogout={handleLogout} setView={setView}/>}
-      {view==="admin"   && liveUser && <AdminView   {...shared} currentUser={liveUser} adminTab={adminTab} setAdminTab={setAdminTab} onTogglePaid={togglePaid} onRemovePlayer={removePlayer} onAddPlayer={addPlayer} onChangePassword={changePassword} onResetGame={resetGame} onTogglePresence={togglePresence} onAddGuest={n=>addGuest(n,liveUser.id)} onRemoveGuest={removeGuest} onUpdateGameInfo={updateGameInfo} onUpdateProfile={(name,pw,color)=>updateProfile(liveUser.id,name,pw,color)} onAddDebt={addDebt} onPayDebt={payDebt} onSendMessage={(t)=>sendMessage(t,liveUser.id,liveUser.name)} onVoteMvp={(vid)=>voteForMvp(liveUser.id,vid)} onLogout={handleLogout} showToast={showToast} setView={setView}/>}
+      {view==="admin"   && liveUser && <AdminView   {...shared} currentUser={liveUser} adminTab={adminTab} setAdminTab={setAdminTab} onTogglePaid={togglePaid} onRemovePlayer={removePlayer} onAddPlayer={addPlayer} onChangePassword={changePassword} onResetGame={resetGame} onTogglePresence={togglePresence} onAddGuest={n=>addGuest(n,liveUser.id)} onRemoveGuest={removeGuest} onUpdateGameInfo={updateGameInfo} onUpdateProfile={(name,pw,color)=>updateProfile(liveUser.id,name,pw,color)} onAddDebt={addDebt} onPayDebt={payDebt} onClearHistory={clearAllHistory} onSendMessage={(t)=>sendMessage(t,liveUser.id,liveUser.name)} onVoteMvp={(vid)=>voteForMvp(liveUser.id,vid)} onLogout={handleLogout} showToast={showToast} setView={setView}/>}
       {view==="stats"   && liveUser && <StatsView   {...shared} player={liveUser} onBack={()=>setView(liveUser.is_admin?"admin":"player")}/>}
       {view==="chat"    && liveUser && <ChatView    {...shared} player={liveUser} onSendMessage={(t)=>sendMessage(t,liveUser.id,liveUser.name)} onBack={()=>setView(liveUser.is_admin?"admin":"player")}/>}
       {view==="profile" && liveUser && <ProfileView {...shared} player={liveUser} onUpdateProfile={(name,pw,color)=>updateProfile(liveUser.id,name,pw,color)} onBack={()=>setView(liveUser.is_admin?"admin":"player")} onLogout={handleLogout}/>}
+    </div>
+  );
+}
+
+// ── DEBT ROW (with partial payment) ──────────────────────────────────────────
+function DebtRow({debt, onPayDebt}) {
+  const [showPartial, setShowPartial] = useState(false);
+  const [amount, setAmount] = useState("");
+
+  return (
+    <div style={{background:"white",borderRadius:8,padding:"8px 10px",marginBottom:5,border:"1px solid #fed7aa"}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+        <span style={{fontSize:12,color:"#6b7280"}}>{debt.description} · <strong style={{color:"#dc2626"}}>{debt.amount}€</strong></span>
+        <div style={{display:"flex",gap:6}}>
+          <div style={{background:"#fee2e2",borderRadius:8,padding:"5px 10px",fontSize:11,fontWeight:800,color:"#dc2626"}}>💸 Em dívida</div>
+          <button style={{background:"#16a34a",border:"none",borderRadius:8,padding:"5px 10px",fontSize:11,fontWeight:800,color:"white",cursor:"pointer"}} onClick={()=>onPayDebt(debt.id)}>✓ Recebido</button>
+        </div>
+      </div>
+      {!showPartial ? (
+        <button onClick={()=>setShowPartial(true)} style={{background:"none",border:"none",color:"#92400e",fontSize:10,fontWeight:600,cursor:"pointer",marginTop:4,padding:0}}>
+          Pagamento parcial?
+        </button>
+      ) : (
+        <div style={{display:"flex",gap:6,marginTop:6}}>
+          <input className="text-input" type="number" placeholder="Valor recebido..." value={amount} onChange={e=>setAmount(e.target.value)} style={{fontSize:12,padding:"6px 10px"}}/>
+          <button style={{background:"#d97706",border:"none",borderRadius:8,padding:"6px 12px",fontSize:11,fontWeight:800,color:"white",cursor:"pointer",flexShrink:0}} onClick={()=>{
+            if(amount&&Number(amount)>0){onPayDebt(debt.id,Number(amount));setShowPartial(false);setAmount("");}
+          }}>OK</button>
+        </div>
+      )}
     </div>
   );
 }
@@ -1211,7 +1258,7 @@ function PlayerView({gameInfo,cdStr,confirmed,waiting,notYet,guests,spotsLeft,pl
 }
 
 // ── ADMIN VIEW ───────────────────────────────────────────────────────────────
-function AdminView({gameInfo,cdStr,confirmed,waiting,notYet,guests,spotsLeft,players,members,history,piggybank,debts,messages,mvpVotes,viewingDate,setViewingDate,historyGame,isViewingHistory,effectiveDate,darkMode,setDarkMode,currentUser,adminTab,setAdminTab,onTogglePaid,onRemovePlayer,onAddPlayer,onChangePassword,onResetGame,onTogglePresence,onAddGuest,onRemoveGuest,onUpdateGameInfo,onUpdateProfile,onAddDebt,onPayDebt,onSendMessage,onVoteMvp,onLogout,showToast,setView}) {
+function AdminView({gameInfo,cdStr,confirmed,waiting,notYet,guests,spotsLeft,players,members,history,piggybank,debts,messages,mvpVotes,viewingDate,setViewingDate,historyGame,isViewingHistory,effectiveDate,darkMode,setDarkMode,currentUser,adminTab,setAdminTab,onTogglePaid,onRemovePlayer,onAddPlayer,onChangePassword,onResetGame,onTogglePresence,onAddGuest,onRemoveGuest,onUpdateGameInfo,onUpdateProfile,onAddDebt,onPayDebt,onClearHistory,onSendMessage,onVoteMvp,onLogout,showToast,setView}) {
   const [newName,setNewName]=useState("");
   const [newPass,setNewPass]=useState("");
   const [editPassId,setEditPassId]=useState(null);
@@ -1227,6 +1274,7 @@ function AdminView({gameInfo,cdStr,confirmed,waiting,notYet,guests,spotsLeft,pla
   const [debtAmount,setDebtAmount]=useState("");
   const [debtDesc,setDebtDesc]=useState("");
   const [showReset,setShowReset]=useState(false);
+  const [showClearConfirm,setShowClearConfirm]=useState(false);
   useEffect(()=>{setEditLoc(gameInfo.location);setEditDate(gameInfo.date);setEditTime(gameInfo.time);},[gameInfo]);
 
   const totalPaid=confirmed.filter(p=>p.paid).length;
@@ -1339,15 +1387,7 @@ function AdminView({gameInfo,cdStr,confirmed,waiting,notYet,guests,spotsLeft,pla
                 </div>
                 <span style={{fontFamily:"'Bebas Neue',cursive",fontSize:22,color:"#dc2626"}}>{m.total}€</span>
               </div>
-              {m.debts.map(d=>(
-                <div key={d.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",background:"white",borderRadius:8,padding:"8px 10px",marginBottom:5,border:"1px solid #fed7aa"}}>
-                  <span style={{fontSize:12,color:"#6b7280"}}>{d.description} · <strong style={{color:"#dc2626"}}>{d.amount}€</strong></span>
-                  <div style={{display:"flex",gap:6}}>
-                    <div style={{background:"#fee2e2",borderRadius:8,padding:"5px 10px",fontSize:11,fontWeight:800,color:"#dc2626"}}>💸 Em dívida</div>
-                    <button style={{background:"#16a34a",border:"none",borderRadius:8,padding:"5px 10px",fontSize:11,fontWeight:800,color:"white",cursor:"pointer"}} onClick={()=>onPayDebt(d.id)}>✓ Recebido</button>
-                  </div>
-                </div>
-              ))}
+              {m.debts.map(d=><DebtRow key={d.id} debt={d} onPayDebt={onPayDebt}/>)}
             </div>
           ))}
           <p className="section-label" style={{marginTop:14}}>REGISTAR DÍVIDA MANUAL</p>
@@ -1414,6 +1454,20 @@ function AdminView({gameInfo,cdStr,confirmed,waiting,notYet,guests,spotsLeft,pla
             </button>
           </div>
           <p style={{fontSize:11,color:"#6b7280",marginTop:8}}>💡 Partilha a password pelo WhatsApp.</p>
+
+          <p className="section-label" style={{marginTop:20}}>⚠️ ZONA DE PERIGO</p>
+          {!showClearConfirm ? (
+            <button className="btn-danger-full" onClick={()=>setShowClearConfirm(true)}>🗑️ Limpar histórico e dívidas (reiniciar mealheiro)</button>
+          ) : (
+            <div style={{background:"#fee2e2",border:"2px solid #dc2626",borderRadius:12,padding:14}}>
+              <p style={{fontSize:13,fontWeight:700,color:"#dc2626",marginBottom:8}}>Tens a certeza?</p>
+              <p style={{fontSize:11,color:"#6b7280",marginBottom:12}}>Isto apaga todo o histórico de jogos e dívidas. O mealheiro volta a 0€. Não afeta jogadores nem estatísticas pessoais.</p>
+              <div style={{display:"flex",gap:8}}>
+                <button className="btn-primary" style={{flex:1,justifyContent:"center",background:"#dc2626"}} onClick={()=>{onClearHistory();setShowClearConfirm(false);}}>✓ Confirmar</button>
+                <button className="btn-primary" style={{flex:1,justifyContent:"center",background:"#6b7280"}} onClick={()=>setShowClearConfirm(false)}>Cancelar</button>
+              </div>
+            </div>
+          )}
         </>}
       </div>
     </div>
