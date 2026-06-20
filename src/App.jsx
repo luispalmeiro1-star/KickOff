@@ -165,7 +165,7 @@ function Avatar({player={}, size=32, style={}}) {
 // ── APP ──────────────────────────────────────────────────────────────────────
 export default function App() {
   const [players, setPlayers]         = useState([]);
-  const [gameInfo, setGameInfo]       = useState({location:"Pavilhão Gimnodesportivo de Alcochete",date:nextWednesday(),time:"22:30"});
+  const [gameInfo, setGameInfo]       = useState({location:"Pavilhão Gimnodesportivo de Alcochete",date:nextWednesday(),time:"22:30",app_name:"Hoje Há Bola"});
   const [history, setHistory]         = useState([]);
   const [debts, setDebts]             = useState([]);
   const [messages, setMessages]       = useState([]);
@@ -688,7 +688,7 @@ function FieldHeader({gameInfo,cdStr,confirmed,notYet,waiting,viewingDate,setVie
       <div className="field-lines"><div className="fl fl-cc"/><div className="fl fl-cl"/><div className="fl fl-lb"/><div className="fl fl-rb"/></div>
       <div className="field-content">
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:5}}>
-          <div className="field-badge"><span style={{fontSize:16}}>⚽</span><span className="field-badge-name">Hoje Há Bola</span></div>
+          <div className="field-badge"><span style={{fontSize:16}}>⚽</span><span className="field-badge-name">{gameInfo.app_name||"Hoje Há Bola"}</span></div>
           <div style={{display:"flex",gap:4,alignItems:"center"}}>
             <button className="field-nav-btn" onClick={()=>setViewingDate(prevWeek(effectiveDate))}><Icon name="left" size={13}/></button>
             {isViewingHistory&&<button className="field-nav-btn" style={{fontSize:10,padding:"3px 8px",fontWeight:800}} onClick={()=>setViewingDate(null)}>HOJE</button>}
@@ -1265,6 +1265,7 @@ function AdminView({gameInfo,cdStr,confirmed,waiting,notYet,guests,spotsLeft,pla
   const [editLoc,setEditLoc]=useState(gameInfo.location);
   const [editDate,setEditDate]=useState(gameInfo.date);
   const [editTime,setEditTime]=useState(gameInfo.time);
+  const [editAppName,setEditAppName]=useState(gameInfo.app_name||"Hoje Há Bola");
   const [edited,setEdited]=useState(false);
   const [teams,setTeams]=useState(null);
   const [winnerTeam,setWinnerTeam]=useState(null);
@@ -1273,7 +1274,7 @@ function AdminView({gameInfo,cdStr,confirmed,waiting,notYet,guests,spotsLeft,pla
   const [debtDesc,setDebtDesc]=useState("");
   const [showReset,setShowReset]=useState(false);
   const [showClearConfirm,setShowClearConfirm]=useState(false);
-  useEffect(()=>{setEditLoc(gameInfo.location);setEditDate(gameInfo.date);setEditTime(gameInfo.time);},[gameInfo]);
+  useEffect(()=>{setEditLoc(gameInfo.location);setEditDate(gameInfo.date);setEditTime(gameInfo.time);setEditAppName(gameInfo.app_name||"Hoje Há Bola");},[gameInfo]);
 
   const totalPaid=confirmed.filter(p=>p.paid).length;
   const totalUnpaid=confirmed.filter(p=>!p.paid).length;
@@ -1436,6 +1437,11 @@ function AdminView({gameInfo,cdStr,confirmed,waiting,notYet,guests,spotsLeft,pla
         {/* GERIR */}
         {adminTab==="gerir"&&<>
           <div className="game-info-card">
+            <div className="game-info-header"><Icon name="edit" size={13}/> NOME DA APP</div>
+            <input className="text-input" value={editAppName} onChange={e=>{setEditAppName(e.target.value);setEdited(true);}} placeholder="Nome do grupo/app..."/>
+          </div>
+
+          <div className="game-info-card" style={{marginTop:12}}>
             <div className="game-info-header"><Icon name="edit" size={13}/> INFORMAÇÕES DO JOGO</div>
             <label className="field-label"><Icon name="pin" size={11}/> Local</label>
             <input className="text-input" value={editLoc} onChange={e=>{setEditLoc(e.target.value);setEdited(true);}}/>
@@ -1443,7 +1449,7 @@ function AdminView({gameInfo,cdStr,confirmed,waiting,notYet,guests,spotsLeft,pla
               <div style={{flex:1}}><label className="field-label"><Icon name="cal" size={11}/> Data</label><input className="text-input" type="date" value={editDate} onChange={e=>{setEditDate(e.target.value);setEdited(true);}}/></div>
               <div style={{width:100}}><label className="field-label"><Icon name="clock" size={11}/> Hora</label><input className="text-input" type="time" value={editTime} onChange={e=>{setEditTime(e.target.value);setEdited(true);}}/></div>
             </div>
-            <button className={`btn-save ${edited?"btn-save-active":""}`} disabled={!edited} onClick={()=>{onUpdateGameInfo({location:editLoc,date:editDate,time:editTime});setEdited(false);}}>
+            <button className={`btn-save ${edited?"btn-save-active":""}`} disabled={!edited} onClick={()=>{onUpdateGameInfo({location:editLoc,date:editDate,time:editTime,app_name:editAppName});setEdited(false);}}>
               <Icon name="check" size={13}/> {edited?"GUARDAR":"SEM ALTERAÇÕES"}
             </button>
           </div>
