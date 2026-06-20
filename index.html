@@ -9,10 +9,20 @@
     <meta name="apple-mobile-web-app-title" content="KickOff" />
     <link rel="apple-touch-icon" href="/icon-192.png" />
     <title>KickOff</title>
+    <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
+    <script>
+      window.OneSignalDeferred = window.OneSignalDeferred || [];
+      OneSignalDeferred.push(async function(OneSignal) {
+        await OneSignal.init({
+          appId: "60b7b224-86fb-4b6e-bc3e-c078cb7bf7c8",
+          notifyButton: { enable: false },
+          allowLocalhostAsSecureOrigin: true,
+        });
+      });
+    </script>
   </head>
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>
- 
