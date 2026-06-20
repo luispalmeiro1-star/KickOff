@@ -186,7 +186,7 @@ export default function App() {
 
   const loadPlayers  = useCallback(async()=>{const{data}=await supabase.from("players").select("*").order("id");if(data)setPlayers(data);},[]);
   const loadGameInfo = useCallback(async()=>{const{data}=await supabase.from("game_info").select("*").eq("id",1).single();if(data)setGameInfo(data);},[]);
-  const loadHistory  = useCallback(async()=>{const{data}=await supabase.from("game_history").select("*").order("date",{ascending:false});if(data){setHistory(data);setPiggybank(data.reduce((s,g)=>s+(Number(g.collected)||0)-RENT,0));}},[]);
+  const loadHistory  = useCallback(async()=>{const{data}=await supabase.from("game_history").select("*").order("date",{ascending:false});if(data){setHistory(data);setPiggybank(data.reduce((s,g)=>s+(Number(g.collected)||0)-(g.players_count>0?RENT:0),0));}},[]);
   const loadDebts    = useCallback(async()=>{const{data}=await supabase.from("debts").select("*").order("created_at");if(data)setDebts(data);},[]);
   const loadMessages = useCallback(async()=>{const{data}=await supabase.from("chat_messages").select("*").order("created_at").limit(100);if(data)setMessages(data);},[]);
   const loadMvp      = useCallback(async()=>{const{data}=await supabase.from("mvp_votes").select("*");if(data)setMvpVotes(data);},[]);
@@ -344,6 +344,9 @@ export default function App() {
     const debt=debts.find(d=>d.id===debtId);
     if(!debt) return;
     const full = amountPaid===null || amountPaid>=Number(debt.amount);
+    const paidNow = full ? Number(debt.amount) : Number(amountPaid);
+    // Register as income in history (special entry, players_count=0 marks it as a debt payment)
+    await supabase.from("game_history").insert({date:gameInfo.date,players_count:0,collected:paidNow,winner_team:null,mvp_name:null});
     if(full){
       await supabase.from("debts").delete().eq("id",debtId);
       showToast("Dívida paga ✓");
@@ -904,7 +907,8 @@ function MvpVote({confirmed=[],mvpVotes=[],currentUserId,gameDate,onVote}) {
 // ── PIGGYBANK ─────────────────────────────────────────────────────────────────
 function PiggyBankCard({piggybank,history}) {
   const totalReceived = history.reduce((s,g)=>s+(Number(g.collected)||0),0);
-  const totalRent = history.length * RENT;
+  const gamesPlayed = history.filter(g=>g.players_count>0).length;
+  const totalRent = gamesPlayed * RENT;
 
   return (
     <div style={{marginTop:16}}>
@@ -923,7 +927,7 @@ function PiggyBankCard({piggybank,history}) {
           </div>
           <div>
             <div style={{fontSize:9,opacity:0.7,letterSpacing:0.5}}>JOGOS PAGOS</div>
-            <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:20,color:"white"}}>{history.length}</div>
+            <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:20,color:"white"}}>{gamesPlayed}</div>
           </div>
         </div>
       </div>
@@ -1296,12 +1300,16 @@ function AdminView({gameInfo,cdStr,confirmed,waiting,notYet,guests,spotsLeft,pla
           </div>
         </div>
 
-        <div className="money-row">
-          <div className="money-box green-box"><span className="money-num">{totalPaid*COST}€</span><span className="money-label">Recebido</span></div>
-          <div className="money-box red-box"><span className="money-num">{totalUnpaid*COST}€</span><span className="money-label">Por receber</span></div>
-          <div className="money-box" style={{background:piggybank>=0?"#dcfce7":"#fee2e2"}}>
-            <span className="money-num" style={{color:piggybank>=0?"#16a34a":"#dc2626"}}>{piggybank>=0?"+":""}{piggybank}€</span>
-            <span className="money-label">Mealheiro</span>
+        <div style={{background:"linear-gradient(135deg,#0891b2,#0e7490)",borderRadius:14,padding:"14px 16px",marginBottom:14,color:"white"}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+            <div>
+              <div style={{fontSize:9,fontWeight:700,letterSpacing:1,opacity:0.8}}>MEALHEIRO</div>
+              <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:32,lineHeight:1}}>{piggybank>=0?"+":""}{piggybank}€</div>
+            </div>
+            <div style={{display:"flex",gap:14,textAlign:"right"}}>
+              <div><div style={{fontSize:9,opacity:0.7}}>RECEBIDO</div><div style={{fontSize:14,fontWeight:800,color:"#86efac"}}>{totalPaid*COST}€</div></div>
+              <div><div style={{fontSize:9,opacity:0.7}}>POR RECEBER</div><div style={{fontSize:14,fontWeight:800,color:"#fca5a5"}}>{totalUnpaid*COST}€</div></div>
+            </div>
           </div>
         </div>
 
