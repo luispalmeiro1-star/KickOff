@@ -293,11 +293,12 @@ export default function App() {
     showToast(`${name} adicionado! 🎉`);
   };
   const updateGameInfo = async(patch)=>{setGameInfo(prev=>({...prev,...patch}));await supabase.from("game_info").update(patch).eq("id",1);showToast("Jogo atualizado ✓");};
-  const updateProfile  = async(id,newName,newPassword,newColor)=>{
+  const updateProfile  = async(id,newName,newPassword,newColor,newPhone)=>{
     const updates={};
     if(newName?.trim()) updates.name=newName.trim();
     if(newPassword?.trim()) updates.password=newPassword.trim();
     if(newColor) updates.avatar_color=newColor;
+    if(newPhone!==undefined) updates.phone=newPhone?.trim()||null;
     if(Object.keys(updates).length===0) return;
     setPlayers(prev=>prev.map(p=>p.id===id?{...p,...updates}:p));
     await supabase.from("players").update(updates).eq("id",id);
@@ -412,11 +413,11 @@ export default function App() {
       <style>{getCss(dm)}</style>
       {toast&&<div className={`toast toast-${toast.type}`}>{toast.msg}</div>}
       {view==="login"   && <LoginView   {...shared} onLogin={handleLogin} showToast={showToast}/>}
-      {view==="player"  && liveUser && <PlayerView  {...shared} player={liveUser} onToggle={()=>togglePresence(liveUser.id)} onAddGuest={n=>addGuest(n,liveUser.id)} onRemoveGuest={removeGuest} onUpdateProfile={(name,pw,color)=>updateProfile(liveUser.id,name,pw,color)} onVoteMvp={(vid)=>voteForMvp(liveUser.id,vid)} onSendMessage={(t)=>sendMessage(t,liveUser.id,liveUser.name)} onUpdatePosition={(pos)=>updatePosition(liveUser.id,pos)} onLogout={switchAccount} setView={setView}/>}
-      {view==="admin"   && liveUser && <AdminView   {...shared} currentUser={liveUser} adminTab={adminTab} setAdminTab={setAdminTab} onTogglePaid={togglePaid} onRemovePlayer={removePlayer} onAddPlayer={addPlayer} onChangePassword={changePassword} onResetGame={resetGame} onTogglePresence={togglePresence} onAddGuest={n=>addGuest(n,liveUser.id)} onRemoveGuest={removeGuest} onUpdateGameInfo={updateGameInfo} onUpdateProfile={(name,pw,color)=>updateProfile(liveUser.id,name,pw,color)} onAddDebt={addDebt} onPayDebt={payDebt} onClearHistory={clearAllHistory} onSendMessage={(t)=>sendMessage(t,liveUser.id,liveUser.name)} onVoteMvp={(vid)=>voteForMvp(liveUser.id,vid)} onLogout={switchAccount} showToast={showToast} setView={setView}/>}
+      {view==="player"  && liveUser && <PlayerView  {...shared} player={liveUser} onToggle={()=>togglePresence(liveUser.id)} onAddGuest={n=>addGuest(n,liveUser.id)} onRemoveGuest={removeGuest} onUpdateProfile={(name,pw,color,phone)=>updateProfile(liveUser.id,name,pw,color,phone)} onVoteMvp={(vid)=>voteForMvp(liveUser.id,vid)} onSendMessage={(t)=>sendMessage(t,liveUser.id,liveUser.name)} onUpdatePosition={(pos)=>updatePosition(liveUser.id,pos)} onLogout={switchAccount} setView={setView}/>}
+      {view==="admin"   && liveUser && <AdminView   {...shared} currentUser={liveUser} adminTab={adminTab} setAdminTab={setAdminTab} onTogglePaid={togglePaid} onRemovePlayer={removePlayer} onAddPlayer={addPlayer} onChangePassword={changePassword} onResetGame={resetGame} onTogglePresence={togglePresence} onAddGuest={n=>addGuest(n,liveUser.id)} onRemoveGuest={removeGuest} onUpdateGameInfo={updateGameInfo} onUpdateProfile={(name,pw,color,phone)=>updateProfile(liveUser.id,name,pw,color,phone)} onAddDebt={addDebt} onPayDebt={payDebt} onClearHistory={clearAllHistory} onSendMessage={(t)=>sendMessage(t,liveUser.id,liveUser.name)} onVoteMvp={(vid)=>voteForMvp(liveUser.id,vid)} onLogout={switchAccount} showToast={showToast} setView={setView}/>}
       {view==="stats"   && liveUser && <StatsView   {...shared} player={liveUser} onBack={()=>setView(liveUser.is_admin?"admin":"player")}/>}
       {view==="chat"    && liveUser && <ChatView    {...shared} player={liveUser} onSendMessage={(t)=>sendMessage(t,liveUser.id,liveUser.name)} onBack={()=>setView(liveUser.is_admin?"admin":"player")}/>}
-      {view==="profile" && liveUser && <ProfileView {...shared} player={liveUser} onUpdateProfile={(name,pw,color)=>updateProfile(liveUser.id,name,pw,color)} onBack={()=>setView(liveUser.is_admin?"admin":"player")} onLogout={handleLogout} onSwitchAccount={switchAccount}/>}
+      {view==="profile" && liveUser && <ProfileView {...shared} player={liveUser} onUpdateProfile={(name,pw,color,phone)=>updateProfile(liveUser.id,name,pw,color,phone)} onBack={()=>setView(liveUser.is_admin?"admin":"player")} onLogout={handleLogout} onSwitchAccount={switchAccount}/>}
     </div>
   );
 }
@@ -1112,6 +1113,7 @@ function ChatView({messages=[],players=[],player,darkMode,onSendMessage,onBack})
 // ── PROFILE VIEW ─────────────────────────────────────────────────────────────
 function ProfileView({player,darkMode,onUpdateProfile,onBack,onLogout,onSwitchAccount}) {
   const [newName,setNewName]=useState(player.name);
+  const [newPhone,setNewPhone]=useState(player.phone||"");
   const [newPw,setNewPw]=useState("");
   const [newPwC,setNewPwC]=useState("");
   const [showPw,setShowPw]=useState(false);
@@ -1132,7 +1134,7 @@ function ProfileView({player,darkMode,onUpdateProfile,onBack,onLogout,onSwitchAc
           <p className="section-label" style={{marginBottom:8}}>COR DO AVATAR</p>
           <div style={{display:"flex",gap:8,flexWrap:"wrap",justifyContent:"center"}}>
             {AVATAR_COLORS.map(c=>(
-              <button key={c} onClick={()=>setColor(c)} style={{width:32,height:32,borderRadius:"50%",background:c,border:color===c?"3px solid #14532d":"2px solid transparent",cursor:"pointer",flexShrink:0}}/>
+              <button key={c} onClick={()=>setColor(c)} style={{width:32,height:32,borderRadius:"50%",background:c,border:color===c?"3px solid white":"2px solid transparent",cursor:"pointer",flexShrink:0}}/>
             ))}
           </div>
         </div>
@@ -1140,6 +1142,8 @@ function ProfileView({player,darkMode,onUpdateProfile,onBack,onLogout,onSwitchAc
         <div style={{background:"#16241c",border:"2px solid #23362a",borderRadius:14,padding:16,display:"flex",flexDirection:"column",gap:10}}>
           <label className="field-label">Nome</label>
           <input className="text-input" value={newName} onChange={e=>setNewName(e.target.value)}/>
+          <label className="field-label"><Icon name="key" size={11}/> Telemóvel</label>
+          <input className="text-input" type="tel" value={newPhone} onChange={e=>setNewPhone(e.target.value)} placeholder="9XX XXX XXX"/>
           <label className="field-label">Nova password</label>
           <div className="pw-row">
             <input className="text-input" type={showPw?"text":"password"} value={newPw} onChange={e=>setNewPw(e.target.value)} placeholder="Nova password..."/>
@@ -1149,7 +1153,7 @@ function ProfileView({player,darkMode,onUpdateProfile,onBack,onLogout,onSwitchAc
           <input className="text-input" type={showPw?"text":"password"} value={newPwC} onChange={e=>setNewPwC(e.target.value)} placeholder="Repetir password..."/>
           <button className="btn-primary" style={{justifyContent:"center"}} onClick={()=>{
             if(newPw&&newPw!==newPwC){alert("As passwords não coincidem!");return;}
-            onUpdateProfile(newName,newPw,color);
+            onUpdateProfile(newName,newPw,color,newPhone);
             setTimeout(()=>onLogout(),800);
           }}><Icon name="check" size={15}/> GUARDAR E SAIR</button>
           <p style={{fontSize:11,color:"#6b7280",textAlign:"center"}}>💡 Após guardar volta a entrar com os novos dados.</p>
