@@ -334,7 +334,7 @@ export default function App() {
   const sendPushNotification = async(title, message) => {
     try {
       await supabase.functions.invoke("send-notification", {
-        body: { title, message, url: "https://kick-off-ten.vercel.app" }
+        body: { title, message, url: "https://hojehajogo.pt" }
       });
     } catch(e) { console.log("Push notification error:", e); }
   };
