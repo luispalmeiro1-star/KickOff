@@ -9,6 +9,11 @@
     <meta name="apple-mobile-web-app-title" content="Hoje Há Jogo" />
     <link rel="apple-touch-icon" href="/icon-192.png" />
     <title>Hoje Há Jogo</title>
+    <script>
+      if (window.location.hostname === 'www.hojehajogo.pt') {
+        window.location.replace('https://hojehajogo.pt' + window.location.pathname + window.location.search);
+      }
+    </script>
     <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
     <script>
       window.OneSignalDeferred = window.OneSignalDeferred || [];
