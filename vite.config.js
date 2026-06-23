@@ -12,8 +12,8 @@ export default defineConfig({
         name: 'Hoje Há Jogo',
         short_name: 'Hoje Há Jogo',
         description: 'Gestão do futsal semanal',
-        theme_color: '#166534',
-        background_color: '#0d1a0e',
+        theme_color: '#0a0a0a',
+        background_color: '#0a0a0a',
         display: 'standalone',
         orientation: 'portrait',
         icons: [
