@@ -1074,8 +1074,8 @@ function StatsView({members=[],history=[],debts=[],mvpVotes=[],piggybank=0,playe
           </div>
         </div>
         <div style={{display:"flex",gap:2,background:"rgba(0,0,0,0.2)",borderRadius:10,padding:3}}>
-          {[["pessoal","⚽"],["ranking","🏆"],["mvp","⭐"],["mealheiro","💰"]].map(([k,l])=>(
-            <button key={k} onClick={()=>setTab(k)} style={{flex:1,padding:"6px 2px",borderRadius:8,border:"none",cursor:"pointer",background:tab===k?"#d4af37":"transparent",color:tab===k?"#14532d":"rgba(255,255,255,0.6)",fontSize:16,transition:"all .15s"}}>
+          {[["pessoal","⚽ Pessoal"],["ranking","🏆 Ranking"],["mvp","⭐ Hall of Fame"]].map(([k,l])=>(
+            <button key={k} onClick={()=>setTab(k)} style={{flex:1,padding:"6px 4px",borderRadius:8,border:"none",cursor:"pointer",background:tab===k?"#d4af37":"transparent",color:tab===k?"#14532d":"rgba(255,255,255,0.7)",fontSize:11,fontWeight:700,transition:"all .15s"}}>
               {l}
             </button>
           ))}
@@ -1107,7 +1107,7 @@ function StatsView({members=[],history=[],debts=[],mvpVotes=[],piggybank=0,playe
         {tab==="mvp"&&<HallOfFameMVP history={history} members={members}/>}
 
         {/* MEALHEIRO */}
-        {tab==="mealheiro"&&<PiggyBankCard piggybank={piggybank} history={history} cost={gameInfo.cost_per_player||COST}/>}
+
       </div>
     </div>
   );
@@ -1326,6 +1326,8 @@ function PlayerView({gameInfo,cdStr,confirmed,waiting,notYet,guests,spotsLeft,pl
           <div className="player-list">{waiting.map((p,i)=><div key={p.id} className="list-row"><span className="list-num">{i+1}</span><Avatar player={players.find(pl=>pl.id===p.id)||p} size={28}/><span className="list-name" style={{marginLeft:4}}>{p.name}</span></div>)}</div>
         </>}
 
+        <PiggyBankCard piggybank={piggybank} history={history} cost={gameInfo.cost_per_player||COST}/>
+
         {/* Dívidas */}
         {debts.length>0&&(()=>{
           const dp=(members||[]).map(m=>({...m,total:(debts||[]).filter(d=>d.player_id===m.id).reduce((s,d)=>s+Number(d.amount),0)})).filter(m=>m.total>0);
@@ -1346,7 +1348,6 @@ function PlayerView({gameInfo,cdStr,confirmed,waiting,notYet,guests,spotsLeft,pl
           );
         })()}
 
-        <PiggyBankCard piggybank={piggybank} history={history} cost={gameInfo.cost_per_player||COST}/>
       </div>
     </div>
   );
