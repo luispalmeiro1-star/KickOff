@@ -867,16 +867,14 @@ function ExpandableCard({title, children, defaultOpen=false}) {
 
 // ── TEAMS REVEAL (Phase 7 - animated) ────────────────────────────────────────
 function TeamsReveal({confirmed, players=[], onReassign}) {
-  const [phase, setPhase] = useState("idle"); // idle | animating | revealed
+  const [phase, setPhase] = useState("idle");
   const [displayNames, setDisplayNames] = useState([]);
   const intervalRef = useRef(null);
 
   const allNames = confirmed.map(p=>p.name);
 
-  const startReveal = async () => {
+  const startReveal = () => {
     setPhase("animating");
-    // First reassign teams in Supabase
-    if(onReassign) await onReassign(confirmed);
     let ticks = 0;
     const maxTicks = 20;
     intervalRef.current = setInterval(()=>{
@@ -885,6 +883,8 @@ function TeamsReveal({confirmed, players=[], onReassign}) {
       ticks++;
       if(ticks >= maxTicks){
         clearInterval(intervalRef.current);
+        // Only save to Supabase AFTER animation finishes
+        if(onReassign) onReassign(confirmed);
         setPhase("revealed");
       }
     }, 100);
