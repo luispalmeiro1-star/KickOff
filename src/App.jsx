@@ -1366,7 +1366,6 @@ function AdminView({gameInfo,cdStr,confirmed,waiting,notYet,guests,spotsLeft,pla
   const [editTime,setEditTime]=useState(gameInfo.time);
   const [editAppName,setEditAppName]=useState(gameInfo.app_name||"Hoje Há Bola");
   const [editCost,setEditCost]=useState(gameInfo.cost_per_player||3);
-  const [editCost,setEditCost]=useState(gameInfo.cost_per_player||3);
   const [edited,setEdited]=useState(false);
   const [teams,setTeams]=useState(null);
   const [winnerTeam,setWinnerTeam]=useState(null);
