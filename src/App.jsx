@@ -165,7 +165,7 @@ function Avatar({player={}, size=32, style={}}) {
 // ── APP ──────────────────────────────────────────────────────────────────────
 export default function App() {
   const [players, setPlayers]         = useState([]);
-  const [gameInfo, setGameInfo]       = useState({location:"Pavilhão Gimnodesportivo de Alcochete",date:nextWednesday(),time:"22:30",app_name:"Hoje Há Bola"});
+  const [gameInfo, setGameInfo]       = useState({location:"Pavilhão Gimnodesportivo de Alcochete",date:nextWednesday(),time:"22:30",app_name:"Hoje Há Bola",cost_per_player:3});
   const [history, setHistory]         = useState([]);
   const [debts, setDebts]             = useState([]);
   const [messages, setMessages]       = useState([]);
@@ -280,6 +280,8 @@ export default function App() {
     else{ns="wait";na=Date.now();showToast("Jogo cheio! ⏳","warn");}
     await supabase.from("players").update({status:ns,confirmed_at:na,paid:false}).eq("id",playerId);
     const updated = players.map(pl=>pl.id===playerId?{...pl,status:ns,confirmed_at:na,paid:false}:pl);
+    const newConfirmedCount = updated.filter(pl=>pl.status==="in").length;
+
     await reassignAllTeams(updated);
   };
   const addGuest = async(guestName,invitedById)=>{
@@ -329,12 +331,21 @@ export default function App() {
     await reassignAllTeams(updated);
     showToast("Posição atualizada ✓");
   };
+  const sendPushNotification = async(title, message) => {
+    try {
+      await supabase.functions.invoke("send-notification", {
+        body: { title, message, url: "https://kick-off-ten.vercel.app" }
+      });
+    } catch(e) { console.log("Push notification error:", e); }
+  };
+
   const resetGame = async(winnerTeam)=>{
     const paidCount=confirmed.filter(p=>p.paid).length;
-    const collected=paidCount*COST;
+    const gameCost=gameInfo.cost_per_player||COST;
+    const collected=paidCount*gameCost;
     const unpaidMembers=confirmed.filter(p=>!p.paid&&!p.is_guest);
     for(const p of unpaidMembers){
-      await supabase.from("debts").insert({player_id:p.id,player_name:p.name,amount:COST,description:`Jogo de ${gameInfo.date}`});
+      await supabase.from("debts").insert({player_id:p.id,player_name:p.name,amount:gameCost,description:`Jogo de ${gameInfo.date}`});
     }
     // Save attendance
     const confirmedMembers=confirmed.filter(p=>!p.is_guest);
@@ -349,7 +360,7 @@ export default function App() {
         const newBest=Math.max(pl.best_streak||0,newStreak);
         await supabase.from("players").update({
           total_games:(pl.total_games||0)+1,
-          total_paid:(pl.total_paid||0)+(p.paid?COST:0),
+          total_paid:(pl.total_paid||0)+(p.paid?gameCost:0),
           current_streak:newStreak,
           best_streak:newBest
         }).eq("id",p.id);
@@ -415,7 +426,8 @@ export default function App() {
   };
 
   const liveUser = currentUser ? players.find(p=>p.id===currentUser.id) : null;
-  const shared = {gameInfo,cdStr,confirmed,waiting,notYet,guests,spotsLeft,members,players,history,piggybank,debts,messages,mvpVotes,viewingDate,setViewingDate,historyGame,isViewingHistory,effectiveDate,darkMode,setDarkMode};
+  const effectiveCost = gameInfo.cost_per_player||COST;
+  const shared = {gameInfo,cdStr,confirmed,waiting,notYet,guests,spotsLeft,members,players,history,piggybank,debts,messages,mvpVotes,viewingDate,setViewingDate,historyGame,isViewingHistory,effectiveDate,darkMode,setDarkMode,effectiveCost};
 
   if(loading) return (
     <div style={{minHeight:"100vh",background:"#166534",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:16}}>
@@ -433,7 +445,7 @@ export default function App() {
       {toast&&<div className={`toast toast-${toast.type}`}>{toast.msg}</div>}
       {view==="login"   && <LoginView   {...shared} onLogin={handleLogin} showToast={showToast}/>}
       {view==="player"  && liveUser && <PlayerView  {...shared} player={liveUser} onToggle={()=>togglePresence(liveUser.id)} onAddGuest={n=>addGuest(n,liveUser.id)} onRemoveGuest={removeGuest} onUpdateProfile={(name,pw,color,phone)=>updateProfile(liveUser.id,name,pw,color,phone)} onVoteMvp={(vid)=>voteForMvp(liveUser.id,vid)} onSendMessage={(t)=>sendMessage(t,liveUser.id,liveUser.name)} onUpdatePosition={(pos)=>updatePosition(liveUser.id,pos)} onLogout={switchAccount} setView={setView}/>}
-      {view==="admin"   && liveUser && <AdminView   {...shared} currentUser={liveUser} adminTab={adminTab} setAdminTab={setAdminTab} onTogglePaid={togglePaid} onRemovePlayer={removePlayer} onAddPlayer={addPlayer} onChangePassword={changePassword} onResetGame={resetGame} onTogglePresence={togglePresence} onAddGuest={n=>addGuest(n,liveUser.id)} onRemoveGuest={removeGuest} onUpdateGameInfo={updateGameInfo} onUpdateProfile={(name,pw,color,phone)=>updateProfile(liveUser.id,name,pw,color,phone)} onAddDebt={addDebt} onPayDebt={payDebt} onClearHistory={clearAllHistory} onSendMessage={(t)=>sendMessage(t,liveUser.id,liveUser.name)} onVoteMvp={(vid)=>voteForMvp(liveUser.id,vid)} onLogout={switchAccount} showToast={showToast} setView={setView}/>}
+      {view==="admin"   && liveUser && <AdminView   {...shared} currentUser={liveUser} adminTab={adminTab} setAdminTab={setAdminTab} onTogglePaid={togglePaid} onRemovePlayer={removePlayer} onAddPlayer={addPlayer} onChangePassword={changePassword} onResetGame={resetGame} onTogglePresence={togglePresence} onAddGuest={n=>addGuest(n,liveUser.id)} onRemoveGuest={removeGuest} onUpdateGameInfo={updateGameInfo} onUpdateProfile={(name,pw,color,phone)=>updateProfile(liveUser.id,name,pw,color,phone)} onAddDebt={addDebt} onPayDebt={payDebt} onClearHistory={clearAllHistory} onSendPush={sendPushNotification} onSendMessage={(t)=>sendMessage(t,liveUser.id,liveUser.name)} onVoteMvp={(vid)=>voteForMvp(liveUser.id,vid)} onLogout={switchAccount} showToast={showToast} setView={setView}/>}
       {view==="stats"   && liveUser && <StatsView   {...shared} player={liveUser} onBack={()=>setView(liveUser.is_admin?"admin":"player")}/>}
       {view==="chat"    && liveUser && <ChatView    {...shared} player={liveUser} onSendMessage={(t)=>sendMessage(t,liveUser.id,liveUser.name)} onBack={()=>setView(liveUser.is_admin?"admin":"player")}/>}
       {view==="profile" && liveUser && <ProfileView {...shared} player={liveUser} onUpdateProfile={(name,pw,color,phone)=>updateProfile(liveUser.id,name,pw,color,phone)} onBack={()=>setView(liveUser.is_admin?"admin":"player")} onLogout={handleLogout} onSwitchAccount={switchAccount}/>}
@@ -969,7 +981,7 @@ function MvpVote({confirmed=[],mvpVotes=[],currentUserId,gameDate,onVote}) {
 }
 
 // ── PIGGYBANK ─────────────────────────────────────────────────────────────────
-function PiggyBankCard({piggybank,history}) {
+function PiggyBankCard({piggybank,history,cost=3}) {
   const totalReceived = history.reduce((s,g)=>s+(Number(g.collected)||0),0);
   const gamesPlayed = history.filter(g=>g.players_count>0).length;
   const totalRent = gamesPlayed * RENT;
@@ -995,13 +1007,13 @@ function PiggyBankCard({piggybank,history}) {
           </div>
         </div>
       </div>
-      <div style={{fontSize:11,color:"#6b7280",textAlign:"center"}}>Cada jogo desconta {RENT}€ do aluguer · {COST}€ por jogador</div>
+      <div style={{fontSize:11,color:"#6b7280",textAlign:"center"}}>Cada jogo desconta {RENT}€ do aluguer · {cost}€ por jogador</div>
     </div>
   );
 }
 
 // ── CONFIRMED LIST ───────────────────────────────────────────────────────────
-function ConfirmedList({confirmed=[],onTogglePaid,isAdmin,debts=[],players=[]}) {
+function ConfirmedList({confirmed=[],onTogglePaid,isAdmin,debts=[],players=[],cost=3}) {
   if(!confirmed.length) return <p className="empty-msg">Ninguém confirmou ainda</p>;
   return (
     <div className="player-list">
@@ -1018,8 +1030,8 @@ function ConfirmedList({confirmed=[],onTogglePaid,isAdmin,debts=[],players=[]}) 
               {debt>0&&<span style={{fontSize:10,color:"#dc2626",fontWeight:700}}>⚠️ deve {debt}€ anteriores</span>}
             </div>
             {isAdmin
-              ?<button className={`paid-btn ${p.paid?"paid-yes":"paid-no"}`} onClick={()=>onTogglePaid(p.id)}>{p.paid?<><Icon name="check" size={11}/> Pago</>:`Deve ${COST}€`}</button>
-              :<span className={`paid-chip ${p.paid?"paid-yes":"paid-no"}`}>{p.paid?"Pago ✓":`Deve ${COST}€`}</span>}
+              ?<button className={`paid-btn ${p.paid?"paid-yes":"paid-no"}`} onClick={()=>onTogglePaid(p.id)}>{p.paid?<><Icon name="check" size={11}/> Pago</>:`Deve ${cost}€`}</button>
+              :<span className={`paid-chip ${p.paid?"paid-yes":"paid-no"}`}>{p.paid?"Pago ✓":`Deve ${cost}€`}</span>}
           </div>
         );
       })}
@@ -1030,6 +1042,7 @@ function ConfirmedList({confirmed=[],onTogglePaid,isAdmin,debts=[],players=[]}) 
 // ── STATS VIEW ───────────────────────────────────────────────────────────────
 function StatsView({members=[],history=[],debts=[],mvpVotes=[],piggybank=0,player,darkMode,onBack}) {
   const dm=darkMode;
+  const [tab,setTab]=useState("pessoal");
   const ranked=[...(members||[])].filter(p=>!p.is_guest).sort((a,b)=>(b.total_games||0)-(a.total_games||0));
   const mvpCounts={};
   history.forEach(g=>{if(g.mvp_name)mvpCounts[g.mvp_name]=(mvpCounts[g.mvp_name]||0)+1;});
@@ -1049,39 +1062,52 @@ function StatsView({members=[],history=[],debts=[],mvpVotes=[],piggybank=0,playe
 
   return (
     <div className="screen">
-      <div style={{background:"#166534",padding:"16px 16px 20px",borderBottom:"3px solid white"}}>
-        <div style={{display:"flex",alignItems:"center",gap:10}}>
+      <div style={{background:"#166534",padding:"16px 16px 14px",borderBottom:"2px solid #d4af37"}}>
+        <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:12}}>
           <button className="field-nav-btn" onClick={onBack}><Icon name="left" size={14}/></button>
-          <span style={{fontFamily:"'Bebas Neue',cursive",fontSize:20,color:"white",letterSpacing:2}}>ESTATÍSTICAS</span>
+          <div style={{display:"flex",alignItems:"center",gap:10,flex:1}}>
+            <Avatar player={player} size={36}/>
+            <div>
+              <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:20,color:"white",letterSpacing:2}}>{player.name}</div>
+              <div style={{fontSize:10,color:"rgba(255,255,255,0.6)"}}>{player.is_admin?"Admin ★":player.position==="GR"?"🧤 GR":"⚽ Polivalente"}{myDebt>0?` · ⚠️ ${myDebt}€ em dívida`:""}</div>
+            </div>
+          </div>
+        </div>
+        <div style={{display:"flex",gap:2,background:"rgba(0,0,0,0.2)",borderRadius:10,padding:3}}>
+          {[["pessoal","⚽"],["ranking","🏆"],["mvp","⭐"],["mealheiro","💰"]].map(([k,l])=>(
+            <button key={k} onClick={()=>setTab(k)} style={{flex:1,padding:"6px 2px",borderRadius:8,border:"none",cursor:"pointer",background:tab===k?"#d4af37":"transparent",color:tab===k?"#14532d":"rgba(255,255,255,0.6)",fontSize:16,transition:"all .15s"}}>
+              {l}
+            </button>
+          ))}
         </div>
       </div>
       <div className="body">
-        <div style={{background:"#16241c",border:"2px solid #16a34a",borderRadius:16,padding:16,marginBottom:14,display:"flex",gap:14,alignItems:"center"}}>
-          <Avatar player={player} size={56}/>
-          <div style={{flex:1}}>
-            <div style={{fontSize:16,fontWeight:800,color:"white"}}>{player.name}</div>
-            <div style={{fontSize:11,color:"#6b7280",marginTop:2}}>{player.is_admin?"Admin ★":player.position==="GR"?"🧤 Guarda-Redes":"⚽ Polivalente"}</div>
-            {myDebt>0&&<div style={{fontSize:11,color:"#dc2626",fontWeight:700,marginTop:4}}>⚠️ {myDebt}€ em dívida</div>}
+        {/* PESSOAL */}
+        {tab==="pessoal"&&(
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8}}>
+            {stats.map((s,i)=>(
+              <div key={i} style={{background:"#16241c",border:"1px solid #23362a",borderRadius:12,padding:"14px 8px",textAlign:"center"}}>
+                <div style={{fontSize:20,marginBottom:6}}>{s.icon}</div>
+                <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:26,color:s.color,lineHeight:1}}>{s.value}</div>
+                <div style={{fontSize:9,color:"#6b7280",fontWeight:700,letterSpacing:1,marginTop:4}}>{s.label}</div>
+              </div>
+            ))}
           </div>
-        </div>
+        )}
 
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginBottom:14}}>
-          {stats.map((s,i)=>(
-            <div key={i} style={{background:"#16241c",border:"1px solid #23362a",borderRadius:12,padding:"10px 8px",textAlign:"center"}}>
-              <div style={{fontSize:16,marginBottom:4}}>{s.icon}</div>
-              <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:22,color:s.color,lineHeight:1}}>{s.value}</div>
-              <div style={{fontSize:9,color:"#6b7280",fontWeight:700,letterSpacing:1,marginTop:3}}>{s.label}</div>
-            </div>
-          ))}
-        </div>
+        {/* RANKING */}
+        {tab==="ranking"&&(
+          <>
+            <p className="section-label"><Icon name="trophy" size={12}/> RANKING DE PRESENÇAS</p>
+            <ExpandableRanking ranked={ranked} mvpCounts={mvpCounts} totalGames={totalGames} currentPlayer={player} darkMode={dm}/>
+          </>
+        )}
 
-        <p className="section-label"><Icon name="trophy" size={12}/> RANKING DE PRESENÇAS</p>
-        <ExpandableRanking ranked={ranked} mvpCounts={mvpCounts} totalGames={totalGames} currentPlayer={player} darkMode={dm}/>
+        {/* MVP */}
+        {tab==="mvp"&&<HallOfFameMVP history={history} members={members}/>}
 
-        {/* Hall of Fame MVP */}
-        <HallOfFameMVP history={history} members={members}/>
-
-        <PiggyBankCard piggybank={piggybank} history={history}/>
+        {/* MEALHEIRO */}
+        {tab==="mealheiro"&&<PiggyBankCard piggybank={piggybank} history={history} cost={gameInfo.cost_per_player||COST}/>}
       </div>
     </div>
   );
@@ -1293,7 +1319,7 @@ function PlayerView({gameInfo,cdStr,confirmed,waiting,notYet,guests,spotsLeft,pl
         </div>
 
         <p className="section-label"><Icon name="people" size={12}/> LISTA DO JOGO</p>
-        <ConfirmedList confirmed={confirmed} debts={debts} players={players}/>
+        <ConfirmedList confirmed={confirmed} debts={debts} players={players} cost={gameInfo.cost_per_player||COST}/>
 
         {waiting.length>0&&<>
           <p className="section-label" style={{marginTop:14}}><Icon name="clock" size={12}/> LISTA DE ESPERA</p>
@@ -1320,14 +1346,14 @@ function PlayerView({gameInfo,cdStr,confirmed,waiting,notYet,guests,spotsLeft,pl
           );
         })()}
 
-        <PiggyBankCard piggybank={piggybank} history={history}/>
+        <PiggyBankCard piggybank={piggybank} history={history} cost={gameInfo.cost_per_player||COST}/>
       </div>
     </div>
   );
 }
 
 // ── ADMIN VIEW ───────────────────────────────────────────────────────────────
-function AdminView({gameInfo,cdStr,confirmed,waiting,notYet,guests,spotsLeft,players,members,history,piggybank,debts,messages,mvpVotes,viewingDate,setViewingDate,historyGame,isViewingHistory,effectiveDate,darkMode,setDarkMode,currentUser,adminTab,setAdminTab,onTogglePaid,onRemovePlayer,onAddPlayer,onChangePassword,onResetGame,onTogglePresence,onAddGuest,onRemoveGuest,onUpdateGameInfo,onUpdateProfile,onAddDebt,onPayDebt,onClearHistory,onSendMessage,onVoteMvp,onLogout,showToast,setView}) {
+function AdminView({gameInfo,cdStr,confirmed,waiting,notYet,guests,spotsLeft,players,members,history,piggybank,debts,messages,mvpVotes,viewingDate,setViewingDate,historyGame,isViewingHistory,effectiveDate,darkMode,setDarkMode,currentUser,adminTab,setAdminTab,onTogglePaid,onRemovePlayer,onAddPlayer,onChangePassword,onResetGame,onTogglePresence,onAddGuest,onRemoveGuest,onUpdateGameInfo,onUpdateProfile,onAddDebt,onPayDebt,onClearHistory,onSendPush,onSendMessage,onVoteMvp,onLogout,showToast,setView}) {
   const [newName,setNewName]=useState("");
   const [newUsername,setNewUsername]=useState("");
   const [newPhone,setNewPhone]=useState("");
@@ -1339,6 +1365,8 @@ function AdminView({gameInfo,cdStr,confirmed,waiting,notYet,guests,spotsLeft,pla
   const [editDate,setEditDate]=useState(gameInfo.date);
   const [editTime,setEditTime]=useState(gameInfo.time);
   const [editAppName,setEditAppName]=useState(gameInfo.app_name||"Hoje Há Bola");
+  const [editCost,setEditCost]=useState(gameInfo.cost_per_player||3);
+  const [editCost,setEditCost]=useState(gameInfo.cost_per_player||3);
   const [edited,setEdited]=useState(false);
   const [teams,setTeams]=useState(null);
   const [winnerTeam,setWinnerTeam]=useState(null);
@@ -1347,7 +1375,7 @@ function AdminView({gameInfo,cdStr,confirmed,waiting,notYet,guests,spotsLeft,pla
   const [debtDesc,setDebtDesc]=useState("");
   const [showReset,setShowReset]=useState(false);
   const [showClearConfirm,setShowClearConfirm]=useState(false);
-  useEffect(()=>{setEditLoc(gameInfo.location);setEditDate(gameInfo.date);setEditTime(gameInfo.time);setEditAppName(gameInfo.app_name||"Hoje Há Bola");},[gameInfo]);
+  useEffect(()=>{setEditLoc(gameInfo.location);setEditDate(gameInfo.date);setEditTime(gameInfo.time);setEditAppName(gameInfo.app_name||"Hoje Há Bola");setEditCost(gameInfo.cost_per_player||3);},[gameInfo]);
 
   const totalPaid=confirmed.filter(p=>p.paid).length;
   const totalUnpaid=confirmed.filter(p=>!p.paid).length;
@@ -1381,8 +1409,8 @@ function AdminView({gameInfo,cdStr,confirmed,waiting,notYet,guests,spotsLeft,pla
               <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:32,lineHeight:1}}>{piggybank>=0?"+":""}{piggybank}€</div>
             </div>
             <div style={{display:"flex",gap:14,textAlign:"right"}}>
-              <div><div style={{fontSize:9,opacity:0.7}}>RECEBIDO</div><div style={{fontSize:14,fontWeight:800,color:"#86efac"}}>{totalPaid*COST}€</div></div>
-              <div><div style={{fontSize:9,opacity:0.7}}>POR RECEBER</div><div style={{fontSize:14,fontWeight:800,color:"#fca5a5"}}>{totalUnpaid*COST}€</div></div>
+              <div><div style={{fontSize:9,opacity:0.7}}>RECEBIDO</div><div style={{fontSize:14,fontWeight:800,color:"#86efac"}}>{totalPaid*(gameInfo.cost_per_player||COST)}€</div></div>
+              <div><div style={{fontSize:9,opacity:0.7}}>POR RECEBER</div><div style={{fontSize:14,fontWeight:800,color:"#fca5a5"}}>{totalUnpaid*(gameInfo.cost_per_player||COST)}€</div></div>
             </div>
           </div>
         </div>
@@ -1399,11 +1427,11 @@ function AdminView({gameInfo,cdStr,confirmed,waiting,notYet,guests,spotsLeft,pla
         {/* JOGO */}
         {adminTab==="jogo"&&<>
           <p className="section-label">✅ CONFIRMADOS ({confirmed.length})</p>
-          <ConfirmedList confirmed={confirmed} onTogglePaid={onTogglePaid} isAdmin debts={debts} players={players}/>
+          <ConfirmedList confirmed={confirmed} onTogglePaid={onTogglePaid} isAdmin debts={debts} players={players} cost={gameInfo.cost_per_player||COST}/>
           {waiting.length>0&&<><p className="section-label" style={{marginTop:12}}>⏳ ESPERA</p><div className="player-list">{waiting.map((p,i)=><div key={p.id} className="list-row"><span className="list-num">{i+1}</span><Avatar player={(players||[]).find(pl=>pl.id===p.id)||p} size={26}/><span className="list-name" style={{marginLeft:4}}>{p.name}</span></div>)}</div></>}
           {notYet.length>0&&<><p className="section-label" style={{marginTop:12}}>❓ SEM RESPOSTA ({notYet.length})</p><div className="player-list">{notYet.map(p=><div key={p.id} className="list-row"><Avatar player={(players||[]).find(pl=>pl.id===p.id)||p} size={26}/><span className="list-name" style={{marginLeft:4}}>{p.name}</span></div>)}</div></>}
           {guests.filter(g=>g.status==="in").length>0&&<><p className="section-label" style={{marginTop:12}}>👤 CONVIDADOS</p>
-          <div className="player-list">{guests.filter(g=>g.status==="in").map(g=><div key={g.id} className="list-row row-guest"><div className="av-guest">{g.name[0]}</div><div className="list-info"><span className="list-name">{g.name}</span><span className="guest-sub">de {g.invited_by}</span></div><button className={`paid-btn ${g.paid?"paid-yes":"paid-no"}`} onClick={()=>onTogglePaid(g.id)}>{g.paid?<><Icon name="check" size={11}/> Pago</>:`Deve ${COST}€`}</button><button className="icon-danger" onClick={()=>onRemoveGuest(g.id)}><Icon name="trash" size={12}/></button></div>)}</div></>}
+          <div className="player-list">{guests.filter(g=>g.status==="in").map(g=><div key={g.id} className="list-row row-guest"><div className="av-guest">{g.name[0]}</div><div className="list-info"><span className="list-name">{g.name}</span><span className="guest-sub">de {g.invited_by}</span></div><button className={`paid-btn ${g.paid?"paid-yes":"paid-no"}`} onClick={()=>onTogglePaid(g.id)}>{g.paid?<><Icon name="check" size={11}/> Pago</>:`Deve ${gameInfo.cost_per_player||COST}€`}</button><button className="icon-danger" onClick={()=>onRemoveGuest(g.id)}><Icon name="trash" size={12}/></button></div>)}</div></>}
 
           {/* MVP vote for admin */}
           {confirmed.length>=MIN_PLAYERS&&<MvpVote confirmed={confirmed} mvpVotes={mvpVotes} currentUserId={currentUser.id} gameDate={gameInfo.date} onVote={onVoteMvp}/>}
@@ -1522,7 +1550,9 @@ function AdminView({gameInfo,cdStr,confirmed,waiting,notYet,guests,spotsLeft,pla
               <div style={{flex:1}}><label className="field-label"><Icon name="cal" size={11}/> Data</label><input className="text-input" type="date" value={editDate} onChange={e=>{setEditDate(e.target.value);setEdited(true);}}/></div>
               <div style={{width:100}}><label className="field-label"><Icon name="clock" size={11}/> Hora</label><input className="text-input" type="time" value={editTime} onChange={e=>{setEditTime(e.target.value);setEdited(true);}}/></div>
             </div>
-            <button className={`btn-save ${edited?"btn-save-active":""}`} disabled={!edited} onClick={()=>{onUpdateGameInfo({location:editLoc,date:editDate,time:editTime,app_name:editAppName});setEdited(false);}}>
+            <label className="field-label">💰 Valor por jogador (€)</label>
+            <input className="text-input" type="number" step="0.5" min="0" value={editCost} onChange={e=>{setEditCost(e.target.value);setEdited(true);}}/>
+            <button className={`btn-save ${edited?"btn-save-active":""}`} disabled={!edited} onClick={()=>{onUpdateGameInfo({location:editLoc,date:editDate,time:editTime,app_name:editAppName,cost_per_player:Number(editCost)});setEdited(false);}}>
               <Icon name="check" size={13}/> {edited?"GUARDAR":"SEM ALTERAÇÕES"}
             </button>
           </div>
@@ -1538,7 +1568,28 @@ function AdminView({gameInfo,cdStr,confirmed,waiting,notYet,guests,spotsLeft,pla
           </div>
           <p style={{fontSize:11,color:"#6b7280",marginTop:8}}>💡 O jogador pode entrar com o utilizador OU o telemóvel.</p>
 
-          <p className="section-label" style={{marginTop:20}}>⚠️ ZONA DE PERIGO</p>
+          <p className="section-label" style={{marginTop:20}}>🔔 NOTIFICAÇÕES MANUAIS</p>
+          <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:8}}>
+            <button className="btn-primary" style={{justifyContent:"center",background:"#16a34a"}} onClick={async()=>{
+              await onSendPush("⚽ Novo jogo disponível!", `Novo jogo marcado para ${gameInfo.date} às ${gameInfo.time}. Confirma presença!`);
+              showToast("Notificação enviada ✓");
+            }}>⚽ Novo jogo disponível</button>
+            <button className="btn-primary" style={{justifyContent:"center",background:"#0891b2"}} onClick={async()=>{
+              await onSendPush("⏰ Lembrete de presença!", `Ainda não confirmaste presença para o jogo de ${gameInfo.date}. Confirma já!`);
+              showToast("Notificação enviada ✓");
+            }}>⏰ Lembrete — Marcar presença</button>
+            <button className="btn-primary" style={{justifyContent:"center",background:"#d97706"}} onClick={async()=>{
+              await onSendPush("💸 Aviso de pagamento!", `Não te esqueças de pagar os ${gameInfo.cost_per_player||3}€ do último jogo!`);
+              showToast("Notificação enviada ✓");
+            }}>💸 Lembrete — Pagamento</button>
+            <button className="btn-primary" style={{justifyContent:"center",background:"#7c3aed"}} onClick={async()=>{
+              await onSendPush("🏆 MVP aberto para votação!", "Já há jogadores suficientes — entra na app e vota no MVP da semana!");
+              showToast("Notificação enviada ✓");
+            }}>🏆 MVP aberto para votação</button>
+          </div>
+          <p style={{fontSize:11,color:"#6b7280",marginBottom:16}}>💡 Notificações enviadas a todos os subscritores.</p>
+
+          <p className="section-label" style={{marginTop:4}}>⚠️ ZONA DE PERIGO</p>
           {!showClearConfirm ? (
             <button className="btn-danger-full" onClick={()=>setShowClearConfirm(true)}>🗑️ Limpar histórico e dívidas (reiniciar mealheiro)</button>
           ) : (
