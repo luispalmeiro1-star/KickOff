@@ -190,9 +190,11 @@ export default function App() {
   const loadDebts    = useCallback(async()=>{const{data}=await supabase.from("debts").select("*").order("created_at");if(data)setDebts(data);},[]);
   const loadMessages = useCallback(async()=>{const{data}=await supabase.from("chat_messages").select("*").order("created_at").limit(100);if(data)setMessages(data);},[]);
   const loadMvp      = useCallback(async()=>{const{data}=await supabase.from("mvp_votes").select("*");if(data)setMvpVotes(data);},[]);
+  const [attendance, setAttendance] = useState([]);
+  const loadAttendance = useCallback(async()=>{const{data}=await supabase.from("game_attendance").select("*").order("game_date",{ascending:false});if(data)setAttendance(data);},[]);
 
   useEffect(()=>{
-    (async()=>{setLoading(true);await Promise.all([loadPlayers(),loadGameInfo(),loadHistory(),loadDebts(),loadMessages(),loadMvp()]);setLoading(false);})();
+    (async()=>{setLoading(true);await Promise.all([loadPlayers(),loadGameInfo(),loadHistory(),loadDebts(),loadMessages(),loadMvp(),loadAttendance()]);setLoading(false);})();
     const subs=[
       supabase.channel("players_ch").on("postgres_changes",{event:"*",schema:"public",table:"players"},loadPlayers).subscribe(),
       supabase.channel("gameinfo_ch").on("postgres_changes",{event:"*",schema:"public",table:"game_info"},loadGameInfo).subscribe(),
@@ -427,7 +429,7 @@ export default function App() {
 
   const liveUser = currentUser ? players.find(p=>p.id===currentUser.id) : null;
   const effectiveCost = gameInfo.cost_per_player||COST;
-  const shared = {gameInfo,cdStr,confirmed,waiting,notYet,guests,spotsLeft,members,players,history,piggybank,debts,messages,mvpVotes,viewingDate,setViewingDate,historyGame,isViewingHistory,effectiveDate,darkMode,setDarkMode,effectiveCost};
+  const shared = {gameInfo,cdStr,confirmed,waiting,notYet,guests,spotsLeft,members,players,history,piggybank,debts,messages,mvpVotes,attendance,viewingDate,setViewingDate,historyGame,isViewingHistory,effectiveDate,darkMode,setDarkMode,effectiveCost};
 
   if(loading) return (
     <div style={{minHeight:"100vh",background:"#166534",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:16}}>
@@ -752,11 +754,20 @@ function FieldHeader({gameInfo,cdStr,confirmed,notYet,waiting,viewingDate,setVie
           <div style={{background:"rgba(0,0,0,0.3)",borderRadius:10,padding:"10px 12px",marginBottom:4}}>
             <div style={{fontSize:11,color:"#bbf7d0",fontWeight:700,marginBottom:6}}>📅 {formatDisplayDate(effectiveDate).toUpperCase()}</div>
             {historyGame?(
-              <div style={{display:"flex",gap:14,flexWrap:"wrap"}}>
-                <div><div style={{fontFamily:"'Bebas Neue',cursive",fontSize:28,color:"#4ade80"}}>{historyGame.players_count}</div><div style={{fontSize:9,color:"rgba(255,255,255,0.5)",letterSpacing:1}}>JOGADORES</div></div>
-                <div><div style={{fontFamily:"'Bebas Neue',cursive",fontSize:28,color:"#fbbf24"}}>{historyGame.collected}€</div><div style={{fontSize:9,color:"rgba(255,255,255,0.5)",letterSpacing:1}}>RECEBIDO</div></div>
-                {historyGame.winner_team&&<div><div style={{fontFamily:"'Bebas Neue',cursive",fontSize:28,color:"#60a5fa"}}>{historyGame.winner_team}</div><div style={{fontSize:9,color:"rgba(255,255,255,0.5)",letterSpacing:1}}>VENCEDOR</div></div>}
-                {historyGame.mvp_name&&<div><div style={{fontFamily:"'Bebas Neue',cursive",fontSize:28,color:"#f472b6"}}>{historyGame.mvp_name}</div><div style={{fontSize:9,color:"rgba(255,255,255,0.5)",letterSpacing:1}}>MVP ⭐</div></div>}
+              <div>
+                <div style={{display:"flex",gap:14,flexWrap:"wrap",marginBottom:8}}>
+                  <div><div style={{fontFamily:"'Bebas Neue',cursive",fontSize:28,color:"#4ade80"}}>{historyGame.players_count}</div><div style={{fontSize:9,color:"rgba(255,255,255,0.5)",letterSpacing:1}}>JOGADORES</div></div>
+                  <div><div style={{fontFamily:"'Bebas Neue',cursive",fontSize:28,color:"#fbbf24"}}>{historyGame.collected}€</div><div style={{fontSize:9,color:"rgba(255,255,255,0.5)",letterSpacing:1}}>RECEBIDO</div></div>
+                  {historyGame.winner_team&&<div><div style={{fontFamily:"'Bebas Neue',cursive",fontSize:28,color:"#60a5fa"}}>{historyGame.winner_team}</div><div style={{fontSize:9,color:"rgba(255,255,255,0.5)",letterSpacing:1}}>VENCEDOR</div></div>}
+                  {historyGame.mvp_name&&<div><div style={{fontFamily:"'Bebas Neue',cursive",fontSize:28,color:"#f472b6"}}>{historyGame.mvp_name}</div><div style={{fontSize:9,color:"rgba(255,255,255,0.5)",letterSpacing:1}}>MVP ⭐</div></div>}
+                </div>
+                {attendance&&attendance.filter(a=>a.game_date===effectiveDate).length>0&&(
+                  <div style={{display:"flex",flexWrap:"wrap",gap:3}}>
+                    {attendance.filter(a=>a.game_date===effectiveDate).map((a,i)=>(
+                      <span key={i} style={{background:"rgba(255,255,255,0.1)",borderRadius:20,padding:"2px 8px",fontSize:10,color:"rgba(255,255,255,0.7)",fontWeight:600}}>{a.player_name}</span>
+                    ))}
+                  </div>
+                )}
               </div>
             ):<div style={{fontSize:12,color:"rgba(255,255,255,0.4)"}}>Sem registo para esta semana</div>}
           </div>
@@ -848,6 +859,42 @@ function LoginView({gameInfo,cdStr,confirmed,notYet,waiting,members,viewingDate,
         </>}
         {isViewingHistory&&<div style={{textAlign:"center",paddingTop:20}}><p style={{color:"#6b7280",fontSize:13}}>A ver histórico — <button style={{background:"none",border:"none",color:"#16a34a",fontWeight:700,cursor:"pointer"}} onClick={()=>setViewingDate(null)}>voltar ao atual</button></p></div>}
       </div>
+    </div>
+  );
+}
+
+// ── BOTTOM NAV ───────────────────────────────────────────────────────────────
+function BottomNav({view, setView, isAdmin, hasDebts, unreadChat}) {
+  const items = isAdmin ? [
+    {key:"admin", icon:"⚽", label:"Jogo"},
+    {key:"equipas_tab", icon:"🎲", label:"Equipas"},
+    {key:"debts", icon:"💸", label:"Dívidas"},
+    {key:"stats", icon:"📊", label:"Stats"},
+    {key:"profile", icon:"👤", label:"Perfil"},
+  ] : [
+    {key:"player", icon:"⚽", label:"Jogo"},
+    {key:"chat", icon:"💬", label:"Chat"},
+    {key:"debts", icon:"💸", label:"Dívidas"},
+    {key:"stats", icon:"📊", label:"Stats"},
+    {key:"profile", icon:"👤", label:"Perfil"},
+  ];
+
+  const activeView = view;
+
+  return (
+    <div style={{position:"fixed",bottom:0,left:"50%",transform:"translateX(-50%)",width:"100%",maxWidth:480,background:"#0a0a0a",borderTop:"1px solid #1f2f1f",display:"flex",zIndex:100,paddingBottom:"env(safe-area-inset-bottom)"}}>
+      {items.map(item=>{
+        const isActive = activeView===item.key || (item.key==="admin" && ["jogo","dividas_admin"].includes(activeView));
+        return (
+          <button key={item.key} onClick={()=>setView(item.key)} style={{flex:1,padding:"8px 4px 10px",background:"transparent",border:"none",cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",gap:2,position:"relative"}}>
+            <span style={{fontSize:18}}>{item.icon}</span>
+            <span style={{fontSize:9,fontWeight:700,color:isActive?"#d4af37":"#4b5563",letterSpacing:0.5}}>{item.label}</span>
+            {isActive&&<div style={{position:"absolute",bottom:0,left:"25%",right:"25%",height:2,background:"#d4af37",borderRadius:99}}/>}
+            {item.key==="debts"&&hasDebts&&<div style={{position:"absolute",top:6,right:"25%",width:7,height:7,background:"#dc2626",borderRadius:"50%"}}/>}
+            {item.key==="chat"&&unreadChat&&<div style={{position:"absolute",top:6,right:"25%",width:7,height:7,background:"#dc2626",borderRadius:"50%"}}/>}
+          </button>
+        );
+      })}
     </div>
   );
 }
@@ -1175,7 +1222,12 @@ function DebtsView({debts=[], members=[], player, darkMode, onBack}) {
 function StatsView({members=[],history=[],debts=[],mvpVotes=[],piggybank=0,player,darkMode,onBack}) {
   const dm=darkMode;
   const [tab,setTab]=useState("pessoal");
-  const ranked=[...(members||[])].filter(p=>!p.is_guest).sort((a,b)=>(b.total_games||0)-(a.total_games||0));
+  const [sortBy,setSortBy]=useState("games");
+  const ranked=[...(members||[])].filter(p=>!p.is_guest).sort((a,b)=>{
+    if(sortBy==="mvp") return (mvpCounts[b.name]||0)-(mvpCounts[a.name]||0);
+    if(sortBy==="pct") return ((b.total_games||0)/Math.max(totalGames,1))-((a.total_games||0)/Math.max(totalGames,1));
+    return (b.total_games||0)-(a.total_games||0);
+  });
   const mvpCounts={};
   history.forEach(g=>{if(g.mvp_name)mvpCounts[g.mvp_name]=(mvpCounts[g.mvp_name]||0)+1;});
   const myDebt=(debts||[]).filter(d=>d.player_id===player.id).reduce((s,d)=>s+Number(d.amount),0);
@@ -1347,6 +1399,8 @@ function ProfileView({player,darkMode,onUpdateProfile,onBack,onLogout,onSwitchAc
 // ── PLAYER VIEW ──────────────────────────────────────────────────────────────
 function PlayerView({gameInfo,cdStr,confirmed,waiting,notYet,guests,spotsLeft,players,members,debts,messages,mvpVotes,history,piggybank,viewingDate,setViewingDate,historyGame,isViewingHistory,effectiveDate,darkMode,setDarkMode,player,onToggle,onAddGuest,onRemoveGuest,onUpdateProfile,onVoteMvp,onSendMessage,onUpdatePosition,onLogout,setView}) {
   const isIn=player.status==="in", isWait=player.status==="wait";
+  const [confirming, setConfirming]=useState(false);
+  const handleToggle=async()=>{setConfirming(true);await onToggle();setTimeout(()=>setConfirming(false),600);};
   const waitPos=waiting.findIndex(p=>p.id===player.id)+1;
   const myGuests=guests.filter(g=>g.invited_by_id===player.id);
   const myDebts=debts.filter(d=>d.player_id===player.id);
@@ -1371,24 +1425,19 @@ function PlayerView({gameInfo,cdStr,confirmed,waiting,notYet,guests,spotsLeft,pl
         <div className="topbar">
           <span className="topbar-name">Olá, <strong>{player.name}</strong></span>
           <div style={{display:"flex",gap:4}}>
-            <button className="icon-ghost" style={{gap:4,fontSize:11,fontWeight:700}} onClick={()=>setView("stats")}><Icon name="chart" size={14}/> Stats</button>
-            <button className="icon-ghost" style={{gap:4,fontSize:11,fontWeight:700,position:"relative"}} onClick={()=>setView("debts")}>
-              <Icon name="euro" size={14}/> Dívidas
-              {debts.filter(d=>d.player_id===player.id).length>0&&<span style={{position:"absolute",top:-2,right:-2,background:"#dc2626",borderRadius:"50%",width:8,height:8}}/>}
-            </button>
-            <button className="icon-ghost" style={{gap:4,fontSize:11,fontWeight:700}} onClick={()=>setView("profile")}><Icon name="user" size={14}/> Perfil</button>
             <button className="icon-ghost" onClick={onLogout}><Icon name="logout" size={16}/></button>
           </div>
         </div>
 
         {totalDebt>0&&(
-          <div style={{background:"rgba(217,119,6,0.15)",border:"2px solid #d97706",borderRadius:12,padding:"10px 14px",marginBottom:14,display:"flex",alignItems:"center",gap:10}}>
+          <button onClick={()=>setView("debts")} style={{width:"100%",background:"rgba(217,119,6,0.15)",border:"2px solid #d97706",borderRadius:12,padding:"10px 14px",marginBottom:14,display:"flex",alignItems:"center",gap:10,cursor:"pointer",textAlign:"left"}}>
             <Icon name="warn" size={18}/>
-            <div>
+            <div style={{flex:1}}>
               <div style={{fontSize:13,fontWeight:800,color:"#fbbf24"}}>Tens {totalDebt}€ em dívida</div>
-              <div style={{fontSize:11,color:"#fcd34d"}}>{myDebts.map(d=>d.description).join(" · ")}</div>
+              <div style={{fontSize:11,color:"#fcd34d"}}>Carrega para ver detalhes</div>
             </div>
-          </div>
+            <Icon name="right" size={14}/>
+          </button>
         )}
 
         <div className={`status-banner sb-${isIn?"in":isWait?"wait":"out"}`}>
@@ -1399,8 +1448,8 @@ function PlayerView({gameInfo,cdStr,confirmed,waiting,notYet,guests,spotsLeft,pl
           </div>
         </div>
 
-        <button className={`btn-big ${isIn||isWait?"btn-red":"btn-green"}`} onClick={onToggle}>
-          {isIn||isWait?<><Icon name="x" size={18}/> CANCELAR PRESENÇA</>:<><Icon name="check" size={18}/> CONFIRMAR PRESENÇA</>}
+        <button className={`btn-big ${isIn||isWait?"btn-red":"btn-green"}`} onClick={handleToggle} style={{opacity:confirming?0.7:1,transform:confirming?"scale(0.97)":"scale(1)",transition:"all 0.15s"}}>
+          {confirming?"⏳ A processar...":(isIn||isWait?<><Icon name="x" size={18}/> CANCELAR PRESENÇA</>:<><Icon name="check" size={18}/> CONFIRMAR PRESENÇA</>)}
         </button>
 
         <RotatingHighlights members={members} history={history} mvpVotes={mvpVotes} confirmed={confirmed} gameInfo={gameInfo}/>
@@ -1464,28 +1513,9 @@ function PlayerView({gameInfo,cdStr,confirmed,waiting,notYet,guests,spotsLeft,pl
         </ExpandableCard>
 
         <PiggyBankCard piggybank={piggybank} history={history} cost={gameInfo.cost_per_player||COST}/>
-
-        {/* Dívidas */}
-        {debts.length>0&&(()=>{
-          const dp=(members||[]).map(m=>({...m,total:(debts||[]).filter(d=>d.player_id===m.id).reduce((s,d)=>s+Number(d.amount),0)})).filter(m=>m.total>0);
-          if(!dp.length) return null;
-          return (
-            <div style={{marginTop:16}}>
-              <p className="section-label"><Icon name="warn" size={12}/> DÍVIDAS EM ABERTO</p>
-              <div style={{display:"flex",flexDirection:"column",gap:5}}>
-                {dp.map(m=>(
-                  <div key={m.id} style={{display:"flex",alignItems:"center",gap:10,background:m.id===player.id?"rgba(249,115,22,0.12)":"#16241c",border:`1px solid ${m.id===player.id?"#f97316":"#23362a"}`,borderRadius:10,padding:"9px 14px"}}>
-                    <Avatar player={m} size={28}/>
-                    <span style={{flex:1,fontSize:13,fontWeight:700,color:"white"}}>{m.name}{m.id===player.id?" (tu)":""}</span>
-                    <span style={{fontFamily:"'Bebas Neue',cursive",fontSize:20,color:"#dc2626"}}>{m.total}€</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          );
-        })()}
-
+        <div style={{height:70}}/>
       </div>
+      <BottomNav view={view} setView={setView} isAdmin={false} hasDebts={debts.filter(d=>d.player_id===player.id).length>0} unreadChat={messages.length>0}/>
     </div>
   );
 }
@@ -1533,8 +1563,6 @@ function AdminView({gameInfo,cdStr,confirmed,waiting,notYet,guests,spotsLeft,pla
         <div className="topbar">
           <span className="topbar-name"><Icon name="shield" size={13}/> <strong>{currentUser.name}</strong> · Admin</span>
           <div style={{display:"flex",gap:4}}>
-            <button className="icon-ghost" style={{gap:4,fontSize:11,fontWeight:700}} onClick={()=>setView("stats")}><Icon name="chart" size={14}/> Stats</button>
-            <button className="icon-ghost" style={{gap:4,fontSize:11,fontWeight:700}} onClick={()=>setView("profile")}><Icon name="user" size={14}/> Perfil</button>
             <button className="icon-ghost" onClick={onLogout}><Icon name="logout" size={16}/></button>
           </div>
         </div>
@@ -1740,19 +1768,21 @@ function AdminView({gameInfo,cdStr,confirmed,waiting,notYet,guests,spotsLeft,pla
             </div>
           )}
         </>}
+        <div style={{height:70}}/>
       </div>
+      <BottomNav view={view} setView={(v)=>{if(v==="equipas_tab"){setAdminTab("equipas");setView("admin");}else setView(v);}} isAdmin={true} hasDebts={debts.length>0} unreadChat={messages.length>0}/>
     </div>
   );
 }
 
 // ── CSS ──────────────────────────────────────────────────────────────────────
 function getCss(dm) {
-  const bg    = dm?"#0a0f0a":"#0f1b14";
-  const card  = dm?"#13201a":"#16241c";
-  const text  = dm?"#e2e8f0":"#f0fdf4";
-  const muted = dm?"#6b7d70":"#8ba593";
-  const border= dm?"#1f2f1f":"#23362a";
-  const input = dm?"#0a1a0a":"#0c1812";
+  const bg    = "#0a0a0a";
+  const card  = "#111111";
+  const text  = "#f0f0f0";
+  const muted = "#6b7280";
+  const border= "#1f1f1f";
+  const input = "#0f0f0f";
   return `
 @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@400;600;700;800&display=swap');
 @keyframes spin{to{transform:rotate(360deg);}}
