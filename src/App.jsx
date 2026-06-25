@@ -1143,6 +1143,16 @@ function BottomNav({view, setView, isAdmin, hasDebts, unreadChat, showToast}) {
   const items = isAdmin
     ? [{key:"admin",icon:"⚽",label:"Jogo"},{key:"equipas_tab",icon:"🎲",label:"Equipas"},{key:"debts",icon:"💸",label:"Dívidas"},{key:"stats",icon:"📊",label:"Stats"},{key:"em-breve",icon:"🌍",label:"Em Breve"},{key:"profile",icon:"👤",label:"Perfil"}]
     : [{key:"player",icon:"⚽",label:"Jogo"},{key:"chat",icon:"💬",label:"Chat"},{key:"debts",icon:"💸",label:"Dívidas"},{key:"stats",icon:"📊",label:"Stats"},{key:"em-breve",icon:"🌍",label:"Em Breve"},{key:"profile",icon:"👤",label:"Perfil"}];
+  const navIcons = {
+    "player":     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/><path d="M2 12h20"/></svg>,
+    "admin":      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/><path d="M2 12h20"/></svg>,
+    "equipas_tab":<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>,
+    "chat":       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>,
+    "debts":      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 10h12M4 14h12M19.5 9a6.5 6.5 0 1 0 0 6"/></svg>,
+    "stats":      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>,
+    "em-breve":   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>,
+    "profile":    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>,
+  };
   return (
     <div style={{position:"fixed",bottom:0,left:"50%",transform:"translateX(-50%)",width:"100%",maxWidth:480,background:"#0a0a0a",borderTop:"1px solid #1a1a1a",display:"flex",zIndex:100,paddingBottom:"env(safe-area-inset-bottom)"}}>
       {items.map(item=>{
@@ -1151,9 +1161,9 @@ function BottomNav({view, setView, isAdmin, hasDebts, unreadChat, showToast}) {
           <button key={item.key} onClick={()=>{
             if(item.key==="em-breve"){ showToast("🔜 Em breve poderás encontrar jogadores para completar o vosso jogo!","warn"); return; }
             setView(item.key);
-          }} style={{flex:1,padding:"8px 4px 10px",background:"transparent",border:"none",cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",gap:2,position:"relative"}}>
-            <span style={{fontSize:18}}>{item.icon}</span>
-            <span style={{fontSize:9,fontWeight:700,color:isActive?"#d4af37":"#4b5563",letterSpacing:0.5}}>{item.label}</span>
+          }} style={{flex:1,padding:"8px 4px 10px",background:"transparent",border:"none",cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",gap:2,position:"relative",color:isActive?"#d4af37":"#4b5563"}}>
+            {navIcons[item.key]||null}
+            <span style={{fontSize:9,fontWeight:700,letterSpacing:0.5}}>{item.label}</span>
             {isActive&&<div style={{position:"absolute",bottom:0,left:"25%",right:"25%",height:2,background:"#d4af37",borderRadius:99}}/>}
             {item.key==="debts"&&hasDebts&&<div style={{position:"absolute",top:6,right:"25%",width:7,height:7,background:"#dc2626",borderRadius:"50%"}}/>}
             {item.key==="chat"&&unreadChat&&<div style={{position:"absolute",top:6,right:"25%",width:7,height:7,background:"#dc2626",borderRadius:"50%"}}/>}
@@ -1434,7 +1444,7 @@ function PlayerView({gameInfo,cdStr,confirmed,waiting,notYet,guests,spotsLeft,pl
   return (
     <div className="screen">
       <FieldHeader {...{gameInfo,cdStr,confirmed,notYet,waiting,viewingDate,setViewingDate,historyGame,isViewingHistory,effectiveDate,attendance}}
-        extraRight={<button className="field-nav-btn" style={{position:"relative"}} onClick={()=>setView("chat")}><Icon name="chat" size={13}/>{messages.length>0&&<span style={{position:"absolute",top:-3,right:-3,background:"#dc2626",borderRadius:"50%",width:8,height:8}}/>}</button>}
+        extraRight={<button className="field-nav-btn" style={{position:"relative"}} onClick={()=>{localStorage.setItem("hhb_last_msg_"+player.id,messages[messages.length-1]?.id||0);setView("chat");}}><Icon name="chat" size={13}/>{messages.length>0&&messages[messages.length-1]?.id!==Number(localStorage.getItem("hhb_last_msg_"+player.id))&&<span style={{position:"absolute",top:-3,right:-3,background:"#dc2626",borderRadius:"50%",width:8,height:8}}/>}</button>}
       />
       <div className="body">
         <div className="topbar">
@@ -1498,7 +1508,7 @@ function PlayerView({gameInfo,cdStr,confirmed,waiting,notYet,guests,spotsLeft,pl
         <PiggyBankCard piggybank={piggybank} history={history} cost={gameInfo.cost_per_player||COST}/>
         <div style={{height:70}}/>
       </div>
-      <BottomNav view={view} setView={setView} isAdmin={false} hasDebts={debts.filter(d=>d.player_id===player.id).length>0} unreadChat={messages.length>0} showToast={()=>alert("🔜 Em breve poderás encontrar jogadores para completar o vosso jogo!")}/>
+      <BottomNav view={view} setView={setView} isAdmin={false} hasDebts={debts.filter(d=>d.player_id===player.id).length>0} unreadChat={messages.length>0&&messages[messages.length-1]?.id!==Number(localStorage.getItem("hhb_last_msg_"+player.id))} showToast={()=>alert("🔜 Em breve poderás encontrar jogadores para completar o vosso jogo!")}/>
     </div>
   );
 }
@@ -1555,7 +1565,7 @@ function AdminView({gameInfo,cdStr,confirmed,waiting,notYet,guests,spotsLeft,pla
   return (
     <div className="screen">
       <FieldHeader {...{gameInfo,cdStr,confirmed,notYet,waiting,viewingDate,setViewingDate,historyGame,isViewingHistory,effectiveDate,attendance}}
-        extraRight={<button className="field-nav-btn" style={{position:"relative"}} onClick={()=>setView("chat")}><Icon name="chat" size={13}/>{messages.length>0&&<span style={{position:"absolute",top:-3,right:-3,background:"#dc2626",borderRadius:"50%",width:8,height:8}}/>}</button>}
+        extraRight={<button className="field-nav-btn" style={{position:"relative"}} onClick={()=>{localStorage.setItem("hhb_last_msg_"+player.id,messages[messages.length-1]?.id||0);setView("chat");}}><Icon name="chat" size={13}/>{messages.length>0&&messages[messages.length-1]?.id!==Number(localStorage.getItem("hhb_last_msg_"+player.id))&&<span style={{position:"absolute",top:-3,right:-3,background:"#dc2626",borderRadius:"50%",width:8,height:8}}/>}</button>}
       />
       <div className="body">
         <div className="topbar">
