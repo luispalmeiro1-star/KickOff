@@ -346,7 +346,7 @@ export default function App() {
       {view==="landing"        && <LandingView setView={setView}/>}
       {view==="login"          && <LoginView onLogin={handleLogin} showToast={showToast} setView={setView}/>}
       {view==="criar-grupo"    && <CriarGrupoView setView={setView} showToast={showToast} onLogin={handleLogin} reloadAll={reloadAll}/>}
-      {view==="entrar-convite" && <EntrarConviteView setView={setView} onLogin={handleLogin} showToast={showToast}/>}
+      {view==="entrar-convite" && <EntrarConviteView setView={setView} showToast={showToast}/>}
       {view==="criar-conta"    && <CriarContaView setView={setView} showToast={showToast}/>}
       {view==="player"  && liveUser && <PlayerView  {...shared} view={view} player={liveUser} onToggle={()=>togglePresence(liveUser.id)} onAddGuest={n=>addGuest(n,liveUser.id)} onRemoveGuest={removeGuest} onUpdateProfile={(name,pw,color,phone)=>updateProfile(liveUser.id,name,pw,color,phone)} onVoteMvp={vid=>voteForMvp(liveUser.id,vid)} onSendMessage={t=>sendMessage(t,liveUser.id,liveUser.name)} onUpdatePosition={pos=>updatePosition(liveUser.id,pos)} onLogout={switchAccount} setView={setView}/>}
       {view==="admin"   && liveUser && <AdminView   {...shared} view={view} currentUser={liveUser} adminTab={adminTab} setAdminTab={setAdminTab} onTogglePaid={togglePaid} onRemovePlayer={removePlayer} onAddPlayer={addPlayer} onChangePassword={changePassword} onResetGame={resetGame} onTogglePresence={togglePresence} onAddGuest={n=>addGuest(n,liveUser.id)} onRemoveGuest={removeGuest} onUpdateGameInfo={updateGameInfo} onUpdateProfile={(name,pw,color,phone)=>updateProfile(liveUser.id,name,pw,color,phone)} onAddDebt={addDebt} onPayDebt={payDebt} onClearHistory={clearAllHistory} onSendPush={sendPushNotification} onReassignTeams={reassignAllTeams} onSendMessage={t=>sendMessage(t,liveUser.id,liveUser.name)} onVoteMvp={vid=>voteForMvp(liveUser.id,vid)} onLogout={switchAccount} showToast={showToast} setView={setView}/>}
@@ -874,10 +874,10 @@ function CriarGrupoView({setView, showToast, onLogin, reloadAll}) {
 }
 
 // ── ENTRAR CONVITE VIEW ───────────────────────────────────────────────────────
-function EntrarConviteView({setView, onLogin, showToast}) {
+function EntrarConviteView({setView, showToast}) {
   const [code, setCode]         = useState("");
   const [group, setGroup]       = useState(null);
-  const [step, setStep]         = useState(1);
+  const [step, setStep]         = useState(1); // 1=código, 2=escolha, 3=login, 4=registo
   const [name, setName]         = useState("");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -893,6 +893,17 @@ function EntrarConviteView({setView, onLogin, showToast}) {
     setGroup(data); setStep(2);
   };
 
+  const handleLogin = async() => {
+    if(!username.trim()||!password.trim()){showToast("Preenche os campos","err");return;}
+    setLoading(true);
+    // Buscar player com este username neste grupo
+    const{data:candidates}=await supabase.from("players").select("*").eq("username",username.trim().toLowerCase()).eq("group_id",group.id);
+    const p=candidates?.find(c=>c.password===password);
+    if(!p){showToast("Utilizador ou password incorretos","err");setLoading(false);return;}
+    localStorage.setItem("hhb_session",JSON.stringify({playerId:p.id,groupId:group.id}));
+    window.location.reload();
+  };
+
   const handleRegister = async() => {
     if(!name.trim()||!username.trim()||!password.trim()){showToast("Preenche todos os campos obrigatórios","err");return;}
     setLoading(true);
@@ -902,7 +913,6 @@ function EntrarConviteView({setView, onLogin, showToast}) {
     const{data:inserted,error}=await supabase.from("players").insert({name:name.trim(),username:username.trim().toLowerCase(),password,phone:phone||null,is_admin:false,status:"out",paid:false,is_guest:false,avatar_color:color,group_id:group.id}).select().single();
     if(error||!inserted){showToast("Erro ao criar conta","err");setLoading(false);return;}
     showToast("Conta criada! A entrar... 🎉");
-    // Guardar sessão e recarregar — evita problemas de estado
     localStorage.setItem("hhb_session",JSON.stringify({playerId:inserted.id,groupId:group.id}));
     await new Promise(r=>setTimeout(r,800));
     window.location.reload();
@@ -911,21 +921,60 @@ function EntrarConviteView({setView, onLogin, showToast}) {
   return (
     <div style={{background:"#0a0a0a",minHeight:"100vh"}}>
       <div style={{background:"#111",padding:"16px",borderBottom:"1px solid #1f1f1f",display:"flex",alignItems:"center",gap:10}}>
-        <button onClick={()=>step===1?setView("landing"):setStep(1)} style={{background:"transparent",border:"none",color:"white",cursor:"pointer",padding:4}}><Icon name="left" size={18}/></button>
+        <button onClick={()=>step===1?setView("landing"):setStep(step===4||step===3?2:1)} style={{background:"transparent",border:"none",color:"white",cursor:"pointer",padding:4}}><Icon name="left" size={18}/></button>
         <span style={{color:"white",fontWeight:700,fontSize:16}}>Entrar com convite</span>
       </div>
       <div style={{padding:"24px 20px"}}>
+
+        {/* PASSO 1 — código */}
         {step===1&&<>
           <p style={{color:"#6b7280",fontSize:13,marginBottom:24}}>Insere o código que recebeste do organizador</p>
           <label style={{color:"#9ca3af",fontSize:11,fontWeight:700,display:"block",marginBottom:6}}>CÓDIGO DE CONVITE</label>
           <input className="text-input" value={code} onChange={e=>setCode(e.target.value.toUpperCase())} placeholder="Ex: HHJ-X7K9" autoCapitalize="characters" style={{marginBottom:24,fontFamily:"'Bebas Neue',cursive",fontSize:20,letterSpacing:3,textAlign:"center"}}/>
           <button className="btn-big btn-green" onClick={checkCode} disabled={loading}>{loading?"A verificar...":"Verificar código →"}</button>
         </>}
+
+        {/* PASSO 2 — escolha */}
         {step===2&&group&&<>
-          <div style={{background:"rgba(212,175,55,0.1)",border:"1px solid #d4af37",borderRadius:12,padding:"14px",marginBottom:24,textAlign:"center"}}>
-            <div style={{color:"#d4af37",fontSize:12,marginBottom:4}}>VAS ENTRAR NO GRUPO</div>
+          <div style={{background:"rgba(212,175,55,0.1)",border:"1px solid #d4af37",borderRadius:12,padding:"14px",marginBottom:28,textAlign:"center"}}>
+            <div style={{color:"#d4af37",fontSize:12,marginBottom:4}}>GRUPO ENCONTRADO</div>
             <div style={{color:"white",fontSize:18,fontWeight:700}}>{group.name}</div>
           </div>
+          <div style={{display:"flex",flexDirection:"column",gap:10}}>
+            <button onClick={()=>setStep(3)} style={{width:"100%",background:"#16a34a",border:"none",borderRadius:12,padding:"16px",cursor:"pointer",display:"flex",alignItems:"center",gap:14,textAlign:"left"}}>
+              <div style={{width:40,height:40,background:"rgba(255,255,255,0.15)",borderRadius:10,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+                <Icon name="shield" size={20}/>
+              </div>
+              <div>
+                <div style={{color:"white",fontSize:14,fontWeight:700}}>Já tenho conta</div>
+                <div style={{color:"rgba(255,255,255,0.6)",fontSize:12}}>Entrar com username e password</div>
+              </div>
+            </button>
+            <button onClick={()=>setStep(4)} style={{width:"100%",background:"#111",border:"1px solid #1f1f1f",borderRadius:12,padding:"16px",cursor:"pointer",display:"flex",alignItems:"center",gap:14,textAlign:"left"}}>
+              <div style={{width:40,height:40,background:"rgba(255,255,255,0.05)",borderRadius:10,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+                <Icon name="plus" size={20}/>
+              </div>
+              <div>
+                <div style={{color:"white",fontSize:14,fontWeight:700}}>Criar conta</div>
+                <div style={{color:"#4b5563",fontSize:12}}>Primeira vez neste grupo</div>
+              </div>
+            </button>
+          </div>
+        </>}
+
+        {/* PASSO 3 — login */}
+        {step===3&&group&&<>
+          <p style={{color:"#6b7280",fontSize:13,marginBottom:20}}>Entra com a tua conta do grupo <strong style={{color:"#d4af37"}}>{group.name}</strong></p>
+          <label style={{color:"#9ca3af",fontSize:11,fontWeight:700,display:"block",marginBottom:6}}>USERNAME</label>
+          <input className="text-input" value={username} onChange={e=>setUsername(e.target.value)} placeholder="O teu username..." autoCapitalize="none" style={{marginBottom:14}}/>
+          <label style={{color:"#9ca3af",fontSize:11,fontWeight:700,display:"block",marginBottom:6}}>PASSWORD</label>
+          <input className="text-input" type="password" value={password} onChange={e=>setPassword(e.target.value)} placeholder="••••••" onKeyDown={e=>e.key==="Enter"&&handleLogin()} style={{marginBottom:24}}/>
+          <button className="btn-big btn-green" onClick={handleLogin} disabled={loading}>{loading?"A entrar...":"Entrar →"}</button>
+        </>}
+
+        {/* PASSO 4 — registo */}
+        {step===4&&group&&<>
+          <p style={{color:"#6b7280",fontSize:13,marginBottom:20}}>Criar conta no grupo <strong style={{color:"#d4af37"}}>{group.name}</strong></p>
           <label style={{color:"#9ca3af",fontSize:11,fontWeight:700,display:"block",marginBottom:6}}>O TEU NOME *</label>
           <input className="text-input" value={name} onChange={e=>setName(e.target.value)} placeholder="Ex: Pedro Santos" style={{marginBottom:14}}/>
           <label style={{color:"#9ca3af",fontSize:11,fontWeight:700,display:"block",marginBottom:6}}>USERNAME *</label>
@@ -936,6 +985,7 @@ function EntrarConviteView({setView, onLogin, showToast}) {
           <input className="text-input" type="tel" value={phone} onChange={e=>setPhone(e.target.value)} placeholder="9XX XXX XXX" style={{marginBottom:24}}/>
           <button className="btn-big btn-green" onClick={handleRegister} disabled={loading}>{loading?"A criar conta...":"✅ Criar conta e entrar"}</button>
         </>}
+
       </div>
     </div>
   );
