@@ -127,7 +127,7 @@ function Avatar({player={}, size=32, style={}}) {
 // ── APP ──────────────────────────────────────────────────────────────────────
 export default function App() {
   const [players, setPlayers]         = useState([]);
-  const [gameInfo, setGameInfo]       = useState({location:"Pavilhão Gimnodesportivo de Alcochete",date:nextWednesday(),time:"22:30",app_name:"Hoje Há Jogo",cost_per_player:3});
+  const [gameInfo, setGameInfo]       = useState({location:"",date:nextWednesday(),time:"22:30",app_name:"Hoje Há Jogo",cost_per_player:3});
   const [history, setHistory]         = useState([]);
   const [debts, setDebts]             = useState([]);
   const [messages, setMessages]       = useState([]);
