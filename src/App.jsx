@@ -173,6 +173,22 @@ export default function App() {
 
   useEffect(()=>{ if(!viewingDate){setHistoryGame(null);return;} setHistoryGame(history.find(h=>h.date===viewingDate)||null); },[viewingDate,history]);
 
+  // Fecho automático 3h30 após o jogo
+  useEffect(()=>{
+    if(!gameInfo.date||!gameInfo.time||!currentUser) return;
+    const [gy,gm,gd]=gameInfo.date.split("-").map(Number);
+    const [gh,gmin]=gameInfo.time.split(":").map(Number);
+    const gameEnd=new Date(gy,gm-1,gd,gh,gmin);
+    gameEnd.setMinutes(gameEnd.getMinutes()+210); // +3h30
+    const now=new Date();
+    const msUntilClose=gameEnd-now;
+    if(msUntilClose<=0) return; // já passou, não faz nada (evita fechar no reload)
+    const timer=setTimeout(()=>{
+      resetGame(null, true); // isAuto=true, winnerTeam=null
+    }, msUntilClose);
+    return ()=>clearTimeout(timer);
+  },[gameInfo.date, gameInfo.time, currentUser]);
+
   useEffect(()=>{
     if(loading||currentUser||players.length===0) return;
     try{
@@ -282,28 +298,55 @@ export default function App() {
   const sendPushNotification = async(title,message)=>{
     try{ await supabase.functions.invoke("send-notification",{body:{title,message,url:"https://hojehajogo.pt"}}); }catch(e){}
   };
-  const resetGame = async(winnerTeam)=>{
+  // Calcula próxima data baseada nos dias habituais do grupo
+  const getNextGameDate = (gameDays=[3])=>{
+    const days=gameDays.map(Number).sort((a,b)=>a-b);
+    const now=new Date();
+    // Tentar os próximos 14 dias
+    for(let i=1;i<=14;i++){
+      const d=new Date(now); d.setDate(now.getDate()+i);
+      if(days.includes(d.getDay())) return d.toISOString().split("T")[0];
+    }
+    // Fallback: 7 dias
+    const fb=new Date(now); fb.setDate(now.getDate()+7);
+    return fb.toISOString().split("T")[0];
+  };
+
+  const resetGame = async(winnerTeam, isAuto=false)=>{
     const gameCost=gameInfo.cost_per_player||COST;
     const collected=confirmed.filter(p=>p.paid).length*gameCost;
     const groupId=currentUser?.group_id||null;
+    // Dívidas automáticas para quem não pagou
     for(const p of confirmed.filter(p=>!p.paid&&!p.is_guest))
       await supabase.from("debts").insert({player_id:p.id,player_name:p.name,amount:gameCost,description:`Jogo de ${gameInfo.date}`,group_id:groupId});
+    // Registo de presenças
     const confirmedMembers=confirmed.filter(p=>!p.is_guest);
     for(const p of confirmedMembers)
       await supabase.from("game_attendance").insert({game_date:gameInfo.date,player_id:p.id,player_name:p.name,group_id:groupId});
+    // Estatísticas dos jogadores
     for(const p of confirmedMembers){
       const pl=players.find(m=>m.id===p.id);
       if(pl){ const ns=(pl.current_streak||0)+1; await supabase.from("players").update({total_games:(pl.total_games||0)+1,total_paid:(pl.total_paid||0)+(p.paid?gameCost:0),current_streak:ns,best_streak:Math.max(pl.best_streak||0,ns)}).eq("id",p.id); }
     }
     for(const p of members.filter(m=>!confirmedMembers.find(c=>c.id===m.id)))
       await supabase.from("players").update({current_streak:0}).eq("id",p.id);
+    // MVP por votos
     const votes=mvpVotes.filter(v=>v.game_date===gameInfo.date);
     let mvpName=null;
     if(votes.length>0){ const counts={}; votes.forEach(v=>{counts[v.voted_for_id]=(counts[v.voted_for_id]||0)+1;}); const topId=Object.keys(counts).sort((a,b)=>counts[b]-counts[a])[0]; mvpName=players.find(p=>p.id===Number(topId))?.name||null; }
-    if(collected>0||confirmed.length>0) await supabase.from("game_history").insert({date:gameInfo.date,players_count:confirmed.length,collected,winner_team:winnerTeam||null,mvp_name:mvpName,group_id:groupId});
+    // Histórico (winnerTeam null se automático — admin decide depois)
+    if(collected>0||confirmed.length>0) await supabase.from("game_history").insert({date:gameInfo.date,players_count:confirmed.length,collected,winner_team:isAuto?null:winnerTeam||null,mvp_name:mvpName,group_id:groupId});
+    // Limpar presenças e convidados
     await supabase.from("players").delete().eq("is_guest",true);
-    await supabase.from("players").update({status:"out",paid:false,confirmed_at:null,team:null}).eq("is_guest",false);
-    showToast("Jogo fechado ✓");
+    if(groupId) await supabase.from("players").update({status:"out",paid:false,confirmed_at:null,team:null}).eq("is_guest",false).eq("group_id",groupId);
+    else await supabase.from("players").update({status:"out",paid:false,confirmed_at:null,team:null}).eq("is_guest",false);
+    // Avançar data para próximo dia habitual
+    const{data:grp}=groupId?await supabase.from("groups").select("game_days").eq("id",groupId).single():{data:null};
+    const gameDays=grp?.game_days||[3];
+    const nextDate=getNextGameDate(gameDays);
+    await supabase.from("game_info").update({date:nextDate}).eq("id",gameInfo.id||1);
+    showToast(isAuto?"Jogo fechado automaticamente ✓":"Jogo fechado ✓");
+    await reloadAll(groupId);
   };
   const addDebt  = async(playerId,playerName,amount,desc)=>{ await supabase.from("debts").insert({player_id:playerId,player_name:playerName,amount,description:desc,group_id:currentUser?.group_id||null}); showToast("Dívida registada ✓"); };
   const payDebt  = async(debtId,amountPaid=null)=>{
@@ -1358,6 +1401,23 @@ function PlayerView({gameInfo,cdStr,confirmed,waiting,notYet,guests,spotsLeft,pl
         <button className={`btn-big ${isIn||isWait?"btn-red":"btn-green"}`} onClick={handleToggle} style={{opacity:confirming?0.7:1,transform:confirming?"scale(0.97)":"scale(1)",transition:"all 0.15s"}}>
           {confirming?"⏳ A processar...":(isIn||isWait?<><Icon name="x" size={18}/> CANCELAR PRESENÇA</>:<><Icon name="check" size={18}/> CONFIRMAR PRESENÇA</>)}
         </button>
+        {/* Banner vencedor — aparece após fecho automático se não foi definido */}
+        {history.length>0&&history[0].date===gameInfo.date&&history[0].winner_team===null&&history[0].players_count>0&&(
+          <div style={{background:"rgba(37,99,235,0.12)",border:"2px solid #2563eb",borderRadius:14,padding:"14px 16px",marginBottom:14}}>
+            <div style={{fontSize:13,fontWeight:800,color:"#93c5fd",marginBottom:10}}>🏆 Qual foi a equipa vencedora do último jogo?</div>
+            <div style={{display:"flex",gap:8}}>
+              {["A","B","C"].map(t=>(
+                <button key={t} onClick={async()=>{
+                  await supabase.from("game_history").update({winner_team:t}).eq("id",history[0].id);
+                  showToast(`Equipa ${t} registada como vencedora ✓`);
+                  await reloadAll(currentUser?.group_id);
+                }} style={{flex:1,padding:"10px",borderRadius:10,border:"1px solid #2563eb",background:"rgba(37,99,235,0.15)",color:"#93c5fd",fontWeight:800,fontSize:14,cursor:"pointer"}}>
+                  Equipa {t}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
         <RotatingHighlights members={members} history={history} mvpVotes={mvpVotes} confirmed={confirmed} gameInfo={gameInfo}/>
         <GroupStatusCard confirmed={confirmed} notYet={notYet} members={members} players={players}/>
         <div style={{display:"flex",gap:8,marginBottom:14,alignItems:"center"}}>
@@ -1411,11 +1471,16 @@ function AdminView({gameInfo,cdStr,confirmed,waiting,notYet,guests,spotsLeft,pla
   const [debtAmount,setDebtAmount]=useState("");
   const [debtDesc,setDebtDesc]=useState("");
   const [showReset,setShowReset]=useState(false);
+  const [editGameDays,setEditGameDays]=useState(null);
   const [showClearConfirm,setShowClearConfirm]=useState(false);
   const [inviteCode,setInviteCode]=useState("");
   const [codeCopied,setCodeCopied]=useState(false);
 
   useEffect(()=>{setEditLoc(gameInfo.location);setEditDate(gameInfo.date);setEditTime(gameInfo.time);setEditAppName(gameInfo.app_name||"Hoje Há Jogo");setEditCost(gameInfo.cost_per_player||3);},[gameInfo]);
+  useEffect(()=>{
+    if(!currentUser?.group_id) return;
+    supabase.from("groups").select("game_days").eq("id",currentUser.group_id).single().then(({data})=>{ if(data?.game_days) setEditGameDays(data.game_days.map(Number)); else setEditGameDays([3]); });
+  },[currentUser?.group_id]);
 
   // Buscar código do grupo
   useEffect(()=>{
@@ -1575,6 +1640,25 @@ function AdminView({gameInfo,cdStr,confirmed,waiting,notYet,guests,spotsLeft,pla
             <input className="text-input" value={editAppName} onChange={e=>{setEditAppName(e.target.value);setEdited(true);}} placeholder="Nome do grupo/app..."/>
           </div>
           <div className="game-info-card" style={{marginTop:12}}>
+            <div className="game-info-header"><Icon name="cal" size={13}/> DIAS HABITUAIS</div>
+            <p style={{fontSize:11,color:"#6b7280",marginBottom:8}}>Quando o jogo fechar, a data avança para o próximo dia selecionado.</p>
+            <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+              {[["Dom",0],["Seg",1],["Ter",2],["Qua",3],["Qui",4],["Sex",5],["Sáb",6]].map(([label,day])=>{
+                const active=(editGameDays||[3]).includes(day);
+                return (
+                  <button key={day} onClick={()=>{
+                    const curr=editGameDays||[3];
+                    const next=active?curr.filter(d=>d!==day):[...curr,day].sort((a,b)=>a-b);
+                    if(next.length===0) return; // pelo menos 1 dia
+                    setEditGameDays(next); setEdited(true);
+                  }} style={{padding:"7px 12px",borderRadius:20,border:`1px solid ${active?"#16a34a":"#2a2a2a"}`,background:active?"#16241c":"#111",color:active?"#4ade80":"#6b7280",fontWeight:700,fontSize:12,cursor:"pointer"}}>
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+          <div className="game-info-card" style={{marginTop:12}}>
             <div className="game-info-header"><Icon name="edit" size={13}/> INFORMAÇÕES DO JOGO</div>
             <label className="field-label"><Icon name="pin" size={11}/> Local</label>
             <input className="text-input" value={editLoc} onChange={e=>{setEditLoc(e.target.value);setEdited(true);}}/>
@@ -1584,7 +1668,10 @@ function AdminView({gameInfo,cdStr,confirmed,waiting,notYet,guests,spotsLeft,pla
             </div>
             <label className="field-label">💰 Valor por jogador (€)</label>
             <input className="text-input" type="number" step="0.5" min="0" value={editCost} onChange={e=>{setEditCost(e.target.value);setEdited(true);}}/>
-            <button className={`btn-save ${edited?"btn-save-active":""}`} disabled={!edited} onClick={()=>{onUpdateGameInfo({location:editLoc,date:editDate,time:editTime,app_name:editAppName,cost_per_player:Number(editCost)});setEdited(false);}}>
+            <button className={`btn-save ${edited?"btn-save-active":""}`} disabled={!edited} onClick={async()=>{
+              onUpdateGameInfo({location:editLoc,date:editDate,time:editTime,app_name:editAppName,cost_per_player:Number(editCost)});
+              if(currentUser?.group_id&&editGameDays) await supabase.from("groups").update({game_days:editGameDays}).eq("id",currentUser.group_id);
+              setEdited(false);}}>
               <Icon name="check" size={13}/> {edited?"GUARDAR":"SEM ALTERAÇÕES"}
             </button>
           </div>
