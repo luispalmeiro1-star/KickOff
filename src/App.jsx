@@ -896,10 +896,20 @@ function EntrarConviteView({setView, showToast}) {
   const handleLogin = async() => {
     if(!username.trim()||!password.trim()){showToast("Preenche os campos","err");return;}
     setLoading(true);
-    // Buscar player com este username neste grupo
-    const{data:candidates}=await supabase.from("players").select("*").eq("username",username.trim().toLowerCase()).eq("group_id",group.id);
+    const u=username.trim().toLowerCase();
+    // Primeiro tenta encontrar no grupo
+    let{data:candidates}=await supabase.from("players").select("*").eq("username",u).eq("group_id",group.id);
+    // Se não encontrar, tenta sem group_id (conta criada via "Criar conta")
+    if(!candidates||candidates.length===0){
+      const{data:orphans}=await supabase.from("players").select("*").eq("username",u).is("group_id",null);
+      candidates=orphans||[];
+    }
     const p=candidates?.find(c=>c.password===password);
     if(!p){showToast("Utilizador ou password incorretos","err");setLoading(false);return;}
+    // Se o player não tem group_id, associa-o agora ao grupo
+    if(!p.group_id){
+      await supabase.from("players").update({group_id:group.id}).eq("id",p.id);
+    }
     localStorage.setItem("hhb_session",JSON.stringify({playerId:p.id,groupId:group.id}));
     window.location.reload();
   };
