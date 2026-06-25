@@ -1434,7 +1434,7 @@ function PlayerView({gameInfo,cdStr,confirmed,waiting,notYet,guests,spotsLeft,pl
   return (
     <div className="screen">
       <FieldHeader {...{gameInfo,cdStr,confirmed,notYet,waiting,viewingDate,setViewingDate,historyGame,isViewingHistory,effectiveDate,attendance}}
-        extraRight={<button className="field-nav-btn" style={{position:"relative"}} onClick={()=>{localStorage.setItem("hhb_last_msg_"+player.id,messages[messages.length-1]?.id||0);setView("chat");}}><Icon name="chat" size={13}/>{messages.length>0&&messages[messages.length-1]?.id!==Number(localStorage.getItem("hhb_last_msg_"+player.id))&&<span style={{position:"absolute",top:-3,right:-3,background:"#dc2626",borderRadius:"50%",width:8,height:8}}/>}</button>}
+        extraRight={<button className="field-nav-btn" onClick={()=>setView("chat")}><Icon name="chat" size={13}/></button>}
       />
       <div className="body">
         <div className="topbar">
@@ -1498,7 +1498,7 @@ function PlayerView({gameInfo,cdStr,confirmed,waiting,notYet,guests,spotsLeft,pl
         <PiggyBankCard piggybank={piggybank} history={history} cost={gameInfo.cost_per_player||COST}/>
         <div style={{height:70}}/>
       </div>
-      <BottomNav view={view} setView={setView} isAdmin={false} hasDebts={debts.filter(d=>d.player_id===player.id).length>0} unreadChat={messages.length>0&&messages[messages.length-1]?.id!==Number(localStorage.getItem("hhb_last_msg_"+player.id))} showToast={()=>alert("🔜 Em breve poderás encontrar jogadores para completar o vosso jogo!")}/>
+      <BottomNav view={view} setView={setView} isAdmin={false} hasDebts={debts.filter(d=>d.player_id===player.id).length>0} unreadChat={false} showToast={()=>alert("🔜 Em breve poderás encontrar jogadores para completar o vosso jogo!")}/>
     </div>
   );
 }
@@ -1555,7 +1555,7 @@ function AdminView({gameInfo,cdStr,confirmed,waiting,notYet,guests,spotsLeft,pla
   return (
     <div className="screen">
       <FieldHeader {...{gameInfo,cdStr,confirmed,notYet,waiting,viewingDate,setViewingDate,historyGame,isViewingHistory,effectiveDate,attendance}}
-        extraRight={<button className="field-nav-btn" style={{position:"relative"}} onClick={()=>{localStorage.setItem("hhb_last_msg_"+player.id,messages[messages.length-1]?.id||0);setView("chat");}}><Icon name="chat" size={13}/>{messages.length>0&&messages[messages.length-1]?.id!==Number(localStorage.getItem("hhb_last_msg_"+player.id))&&<span style={{position:"absolute",top:-3,right:-3,background:"#dc2626",borderRadius:"50%",width:8,height:8}}/>}</button>}
+        extraRight={<button className="field-nav-btn" onClick={()=>setView("chat")}><Icon name="chat" size={13}/></button>}
       />
       <div className="body">
         <div className="topbar">
@@ -1758,7 +1758,7 @@ function AdminView({gameInfo,cdStr,confirmed,waiting,notYet,guests,spotsLeft,pla
 
         <div style={{height:70}}/>
       </div>
-      <BottomNav view={view} setView={v=>{if(v==="equipas_tab"){setAdminTab("equipas");setView("admin");}else setView(v);}} isAdmin={true} hasDebts={debts.length>0} unreadChat={messages.length>0} showToast={()=>alert("🔜 Em breve poderás encontrar jogadores para completar o vosso jogo!")}/>
+      <BottomNav view={view} setView={v=>{if(v==="equipas_tab"){setAdminTab("equipas");setView("admin");}else setView(v);}} isAdmin={true} hasDebts={debts.length>0} unreadChat={false} showToast={()=>alert("🔜 Em breve poderás encontrar jogadores para completar o vosso jogo!")}/>
     </div>
   );
 }
