@@ -788,11 +788,17 @@ function CriarGrupoView({setView, showToast, onLogin, reloadAll}) {
   const handleEnterApp = async() => {
     if(!createdGroup) return;
     setLoading(true);
-    await reloadAll(createdGroup.id);
-    await new Promise(r=>setTimeout(r,600));
-    const ok=await onLogin(createdGroup.adminUsername,createdGroup.adminPassword,createdGroup.id);
-    setLoading(false);
-    if(!ok) window.location.reload();
+    try {
+      // Buscar player diretamente do Supabase — não depende do estado React
+      const{data:player}=await supabase.from("players").select("*").eq("username",createdGroup.adminUsername).eq("group_id",createdGroup.id).single();
+      if(!player){ showToast("Erro ao entrar. Faz login manualmente.","err"); setLoading(false); return; }
+      // Guardar sessão e recarregar a página — restaura tudo limpo
+      localStorage.setItem("hhb_session",JSON.stringify({playerId:player.id,groupId:player.group_id}));
+      window.location.reload();
+    } catch(e) {
+      showToast("Erro ao entrar","err");
+      setLoading(false);
+    }
   };
 
   // Passo 3 — código permanente, nunca desaparece
@@ -887,13 +893,13 @@ function EntrarConviteView({setView, onLogin, showToast}) {
     const{data:existing}=await supabase.from("players").select("id").eq("username",username.trim().toLowerCase()).eq("group_id",group.id);
     if(existing&&existing.length>0){showToast("Username já existe neste grupo","err");setLoading(false);return;}
     const color=AVATAR_COLORS[Math.floor(Math.random()*AVATAR_COLORS.length)];
-    const{error}=await supabase.from("players").insert({name:name.trim(),username:username.trim().toLowerCase(),password,phone:phone||null,is_admin:false,status:"out",paid:false,is_guest:false,avatar_color:color,group_id:group.id});
-    if(error){showToast("Erro ao criar conta","err");setLoading(false);return;}
+    const{data:inserted,error}=await supabase.from("players").insert({name:name.trim(),username:username.trim().toLowerCase(),password,phone:phone||null,is_admin:false,status:"out",paid:false,is_guest:false,avatar_color:color,group_id:group.id}).select().single();
+    if(error||!inserted){showToast("Erro ao criar conta","err");setLoading(false);return;}
     showToast("Conta criada! A entrar... 🎉");
+    // Guardar sessão e recarregar — evita problemas de estado
+    localStorage.setItem("hhb_session",JSON.stringify({playerId:inserted.id,groupId:group.id}));
     await new Promise(r=>setTimeout(r,800));
-    const ok=await onLogin(username.trim().toLowerCase(),password,group.id);
-    setLoading(false);
-    if(!ok) window.location.reload();
+    window.location.reload();
   };
 
   return (
