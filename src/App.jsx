@@ -204,13 +204,19 @@ export default function App() {
 
   const handleLogin = async(identifier,password,groupId=null)=>{
     const clean=identifier.trim().toLowerCase();
-    let candidates=players.filter(p=>p.username?.toLowerCase()===clean||p.phone?.replace(/\s+/g,"")===identifier.trim().replace(/\s+/g,""));
-    if(groupId) candidates=candidates.filter(p=>p.group_id===groupId);
+    // Buscar diretamente do Supabase — não depende do estado local
+    let q=supabase.from("players").select("*").or(`username.eq.${clean},phone.eq.${identifier.trim().replace(/\s+/g,"")}`);
+    if(groupId) q=q.eq("group_id",groupId);
+    const{data:candidates}=await q;
+    if(!candidates||candidates.length===0) return false;
     const p=candidates.find(c=>c.password===password);
     if(!p) return false;
+    // Usar o group_id do próprio player (mesmo que não tenha sido passado)
+    const effectiveGroupId=p.group_id||null;
+    localStorage.setItem("hhb_session",JSON.stringify({playerId:p.id,groupId:effectiveGroupId}));
+    if(effectiveGroupId) await reloadAll(effectiveGroupId);
+    else await reloadAll();
     setCurrentUser(p); setView(p.is_admin?"admin":"player");
-    localStorage.setItem("hhb_session",JSON.stringify({playerId:p.id,groupId:p.group_id||null}));
-    if(p.group_id) await reloadAll(p.group_id);
     linkOneSignal(p.id);
     return true;
   };
