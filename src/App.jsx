@@ -292,12 +292,16 @@ export default function App() {
 
   const handleLogin = async(identifier,password,groupId=null)=>{
     const clean=identifier.trim().toLowerCase();
-    // Buscar diretamente do Supabase
-    let q=supabase.from("players").select("*").or(`username.eq.${clean},phone.eq.${identifier.trim().replace(/\s+/g,"")}`);
-    if(groupId) q=q.eq("group_id",groupId);
-    const{data:candidates}=await q;
-    if(!candidates||candidates.length===0) return false;
-    const p=candidates.find(c=>c.password===password);
+    // Tentar login via Edge Function (suporta passwords hashed e texto puro)
+    let result = await callLogin(clean, password, groupId);
+    // Se não encontrou por username, tentar por telemóvel
+    if(result?.error==="Utilizador não encontrado"){
+      const{data:byPhone}=await supabase.from("players").select("username,group_id").eq("phone",identifier.trim().replace(/\s+/g,"")).limit(1);
+      if(byPhone&&byPhone.length>0){
+        result=await callLogin(byPhone[0].username, password, groupId||byPhone[0].group_id||null);
+      }
+    }
+    const p=result?.player||null;
     if(!p) return false;
     const effectiveGroupId=p.group_id||null;
     localStorage.setItem("hhb_session",JSON.stringify({playerId:p.id,groupId:effectiveGroupId}));
