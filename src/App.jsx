@@ -5,7 +5,7 @@ import { supabase } from "./supabase.js";
 // ── EDGE FUNCTION HELPERS ─────────────────────────────────────────────────────
 const REGISTER_URL = "https://juoheqnocyluxsqzcdcr.supabase.co/functions/v1/smooth-processor";
 const LOGIN_URL = "https://juoheqnocyluxsqzcdcr.supabase.co/functions/v1/auth-login";
-const ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imp1b2hlcW5vY3lsdXhzcXpjZGNyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDgzNTY2OTEsImV4cCI6MjA2MzkzMjY5MX0.SBOiXUCdRlPiPMHKVCQcN4OUCQlJhVUx_wXRv70oiMA";
+const ANON_KEY = "sb_publishable_63hRr7RNMV55-hY1VyaRAA_gt86VwS2";
 
 async function callRegister(data) {
   const res = await fetch(REGISTER_URL, {
@@ -292,17 +292,12 @@ export default function App() {
 
   const handleLogin = async(identifier,password,groupId=null)=>{
     const clean=identifier.trim().toLowerCase();
-    // Usar Edge Function para verificar password (suporta hashed e texto puro)
-    const result = await callLogin(clean, password, groupId);
-    let p = result?.player || null;
-    // Se não encontrou por username, tentar por telemóvel via Supabase
-    if(!p){
-      const{data:byPhone}=await supabase.from("players").select("*").eq("phone",identifier.trim().replace(/\s+/g,""));
-      if(byPhone&&byPhone.length>0){
-        const phoneResult=await callLogin(byPhone[0].username, password, groupId||byPhone[0].group_id||null);
-        p=phoneResult?.player||null;
-      }
-    }
+    // Buscar diretamente do Supabase
+    let q=supabase.from("players").select("*").or(`username.eq.${clean},phone.eq.${identifier.trim().replace(/\s+/g,"")}`);
+    if(groupId) q=q.eq("group_id",groupId);
+    const{data:candidates}=await q;
+    if(!candidates||candidates.length===0) return false;
+    const p=candidates.find(c=>c.password===password);
     if(!p) return false;
     const effectiveGroupId=p.group_id||null;
     localStorage.setItem("hhb_session",JSON.stringify({playerId:p.id,groupId:effectiveGroupId}));
