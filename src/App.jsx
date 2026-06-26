@@ -876,8 +876,11 @@ function CriarContaView({setView, showToast}) {
 
 // ── CRIAR GRUPO VIEW — ecrã 3 permanente ──────────────────────────────────────
 function CriarGrupoView({setView, showToast, onLogin, reloadAll}) {
-  const [step, setStep]               = useState(1);
-  const [groupName, setGroupName]     = useState("");
+  const [step, setStep]               = useState(()=>{
+    // Se já há um código pendente no localStorage, ir direto para passo 3
+    return localStorage.getItem("hhb_pending_code") ? 3 : 1;
+  });
+  const [groupName, setGroupName]     = useState(()=>localStorage.getItem("hhb_pending_group")||"");
   const [location, setLocation]       = useState("");
   const [time, setTime]               = useState("22:30");
   const [cost, setCost]               = useState("3");
@@ -886,8 +889,11 @@ function CriarGrupoView({setView, showToast, onLogin, reloadAll}) {
   const [adminPassword, setAdminPassword] = useState("");
   const [adminPhone, setAdminPhone]   = useState("");
   const [loading, setLoading]         = useState(false);
-  const [inviteCode, setInviteCode]   = useState("");
-  const [createdGroup, setCreatedGroup] = useState(null);
+  const [inviteCode, setInviteCode]   = useState(()=>localStorage.getItem("hhb_pending_code")||"");
+  const [createdGroup, setCreatedGroup] = useState(()=>{
+    const c=localStorage.getItem("hhb_pending_group_data");
+    return c?JSON.parse(c):null;
+  });
   const [copied, setCopied]           = useState(false);
 
   const generateCode = () => {
@@ -904,6 +910,9 @@ function CriarGrupoView({setView, showToast, onLogin, reloadAll}) {
     setLoading(true);
     try {
       const code=generateCode();
+      // Guardar código E nome do grupo imediatamente no localStorage
+      localStorage.setItem("hhb_pending_code", code);
+      localStorage.setItem("hhb_pending_group", groupName.trim());
       const{data:group,error:ge}=await supabase.from("groups").insert({name:groupName.trim(),location:location.trim(),time,cost_per_player:Number(cost),invite_code:code}).select().single();
       if(ge) throw ge;
       const color=AVATAR_COLORS[Math.floor(Math.random()*AVATAR_COLORS.length)];
@@ -911,8 +920,11 @@ function CriarGrupoView({setView, showToast, onLogin, reloadAll}) {
       if(pe) throw pe;
       const nw=()=>{const d=new Date();const day=d.getDay();const diff=(3-day+7)%7||7;d.setDate(d.getDate()+diff);return d.toISOString().split("T")[0];};
       await supabase.from("game_info").insert({location:location.trim()||"A definir",date:nw(),time,app_name:groupName.trim(),cost_per_player:Number(cost),group_id:group.id});
+      const groupData={...group,adminUsername:adminUsername.trim().toLowerCase(),adminPassword};
       setInviteCode(code);
-      setCreatedGroup({...group,adminUsername:adminUsername.trim().toLowerCase(),adminPassword});
+      setCreatedGroup(groupData);
+      localStorage.setItem("hhb_pending_group_data", JSON.stringify(groupData));
+      setGroupName(groupName.trim());
       setStep(3);
     } catch(e) {
       showToast("Erro ao criar grupo: "+e.message,"err");
@@ -941,6 +953,10 @@ function CriarGrupoView({setView, showToast, onLogin, reloadAll}) {
       // Guardar sessão + código para mostrar após reload
       localStorage.setItem("hhb_session",JSON.stringify({playerId:player.id,groupId:player.group_id}));
       localStorage.setItem("hhb_new_group_code",inviteCode);
+      // Limpar dados temporários
+      localStorage.removeItem("hhb_pending_code");
+      localStorage.removeItem("hhb_pending_group");
+      localStorage.removeItem("hhb_pending_group_data");
       window.location.reload();
     } catch(e) {
       showToast("Erro ao entrar","err");
@@ -948,32 +964,17 @@ function CriarGrupoView({setView, showToast, onLogin, reloadAll}) {
     }
   };
 
-  // Passo 3 — código permanente, nunca desaparece
+  // Passo 3 — sucesso simples, sem mostrar código
   if(step===3) return (
-    <div style={{background:"#0a0a0a",minHeight:"100vh",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"24px"}}>
-      <div style={{textAlign:"center",marginBottom:28}}>
-        <div style={{fontSize:48,marginBottom:12}}>🎉</div>
-        <div style={{color:"white",fontSize:20,fontWeight:700,marginBottom:6}}>Grupo criado com sucesso!</div>
-        <div style={{color:"#6b7280",fontSize:13}}>Partilha este código com os teus jogadores</div>
+    <div style={{background:"#0a0a0a",minHeight:"100vh",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"24px",textAlign:"center"}}>
+      <div style={{fontSize:64,marginBottom:20}}>🎉</div>
+      <div style={{color:"white",fontSize:22,fontWeight:800,marginBottom:10}}>Grupo criado!</div>
+      <div style={{color:"#6b7280",fontSize:14,lineHeight:1.7,maxWidth:300,marginBottom:40}}>
+        Para ver o código do grupo e partilhar com os teus jogadores, entra na app.
       </div>
-
-      <div style={{background:"#111",border:"2px solid #d4af37",borderRadius:20,padding:"28px 32px",textAlign:"center",marginBottom:24,width:"100%",maxWidth:340}}>
-        <div style={{color:"#6b7280",fontSize:11,fontWeight:700,letterSpacing:2,marginBottom:12}}>CÓDIGO DE CONVITE</div>
-        <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:52,color:"#d4af37",letterSpacing:8,lineHeight:1}}>{inviteCode}</div>
-        <div style={{color:"#4b5563",fontSize:13,marginTop:12}}>{groupName}</div>
-      </div>
-
-      <div style={{width:"100%",maxWidth:340,display:"flex",flexDirection:"column",gap:10}}>
-        <button onClick={handleShare} style={{width:"100%",padding:"14px",background:"#d4af37",border:"none",borderRadius:12,color:"#0a0a0a",fontWeight:800,fontSize:14,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
-          <Icon name="share" size={16}/> Partilhar código
-        </button>
-        <button onClick={handleCopy} style={{width:"100%",padding:"12px",background:"#1a1a1a",border:"1px solid #2a2a2a",borderRadius:12,color:copied?"#4ade80":"white",fontWeight:700,fontSize:13,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
-          <Icon name="copy" size={15}/> {copied?"✓ Copiado!":"Copiar código"}
-        </button>
-        <button onClick={handleEnterApp} disabled={loading} style={{width:"100%",padding:"12px",background:"transparent",border:"none",color:"#4ade80",fontWeight:700,fontSize:14,cursor:"pointer",marginTop:4}}>
-          {loading?"A entrar...":"Entrar na app →"}
-        </button>
-      </div>
+      <button onClick={handleEnterApp} disabled={loading} style={{width:"100%",maxWidth:300,padding:"16px",background:"#16a34a",border:"none",borderRadius:12,color:"white",fontWeight:800,fontSize:15,cursor:"pointer"}}>
+        {loading?"A entrar...":"Entrar na app →"}
+      </button>
     </div>
   );
 
