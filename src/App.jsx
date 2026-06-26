@@ -875,7 +875,7 @@ function CriarContaView({setView, showToast}) {
 }
 
 // ── CRIAR GRUPO VIEW ────────────────────────────────────────────────────────
-const CriarGrupoView = React.memo(function CriarGrupoView({setView, showToast, onLogin, reloadAll}) {
+function CriarGrupoView({setView, showToast, onLogin, reloadAll}) {
   const [step, setStep]               = useState(()=>{
     // Se já há um código pendente no localStorage, ir direto para passo 3
     return localStorage.getItem("hhb_pending_code") ? 3 : 1;
@@ -1008,7 +1008,7 @@ const CriarGrupoView = React.memo(function CriarGrupoView({setView, showToast, o
       </div>
     </div>
   );
-});
+}
 
 // ── ENTRAR CONVITE VIEW ───────────────────────────────────────────────────────
 function EntrarConviteView({setView, showToast}) {
