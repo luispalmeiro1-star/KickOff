@@ -936,11 +936,11 @@ function CriarGrupoView({setView, showToast, onLogin, reloadAll}) {
     if(!createdGroup) return;
     setLoading(true);
     try {
-      // Buscar player diretamente do Supabase — não depende do estado React
       const{data:player}=await supabase.from("players").select("*").eq("username",createdGroup.adminUsername).eq("group_id",createdGroup.id).single();
       if(!player){ showToast("Erro ao entrar. Faz login manualmente.","err"); setLoading(false); return; }
-      // Guardar sessão e recarregar a página — restaura tudo limpo
+      // Guardar sessão + código para mostrar após reload
       localStorage.setItem("hhb_session",JSON.stringify({playerId:player.id,groupId:player.group_id}));
+      localStorage.setItem("hhb_new_group_code",inviteCode);
       window.location.reload();
     } catch(e) {
       showToast("Erro ao entrar","err");
@@ -1483,6 +1483,7 @@ function PlayerView({gameInfo,cdStr,confirmed,waiting,notYet,guests,spotsLeft,pl
           </>}
         </ExpandableCard>
         <PiggyBankCard piggybank={piggybank} history={history} cost={gameInfo.cost_per_player||COST}/>
+        <GroupCodeCard groupId={player.group_id}/>
         <div style={{height:70}}/>
       </div>
       <BottomNav view={view} setView={setView} isAdmin={false} hasDebts={debts.filter(d=>d.player_id===player.id).length>0} unreadChat={false} showToast={()=>alert("🔜 Em breve poderás encontrar jogadores para completar o vosso jogo!")}/>
@@ -1513,6 +1514,7 @@ function AdminView({gameInfo,cdStr,confirmed,waiting,notYet,guests,spotsLeft,pla
   const [editGameDays,setEditGameDays]=useState(null);
   const [showClearConfirm,setShowClearConfirm]=useState(false);
   const [inviteCode,setInviteCode]=useState("");
+  const [newGroupCode,setNewGroupCode]=useState(()=>{ const c=localStorage.getItem("hhb_new_group_code"); if(c) localStorage.removeItem("hhb_new_group_code"); return c||null; });
   const [codeCopied,setCodeCopied]=useState(false);
 
   useEffect(()=>{setEditLoc(gameInfo.location);setEditDate(gameInfo.date);setEditTime(gameInfo.time);setEditAppName(gameInfo.app_name||"Hoje Há Jogo");setEditCost(gameInfo.cost_per_player||3);},[gameInfo]);
@@ -1578,6 +1580,24 @@ function AdminView({gameInfo,cdStr,confirmed,waiting,notYet,guests,spotsLeft,pla
                 </button>
               </div>
             </div>
+          </div>
+        )}
+
+        {/* Banner código novo grupo */}
+        {newGroupCode&&(
+          <div style={{background:"#111",border:"2px solid #d4af37",borderRadius:16,padding:"20px",marginBottom:14,textAlign:"center"}}>
+            <div style={{fontSize:11,fontWeight:700,color:"#6b7280",letterSpacing:2,marginBottom:8}}>O CÓDIGO DO TEU GRUPO É</div>
+            <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:48,color:"#d4af37",letterSpacing:8,marginBottom:12}}>{newGroupCode}</div>
+            <div style={{fontSize:12,color:"#6b7280",marginBottom:14}}>Partilha com os teus jogadores para entrarem</div>
+            <div style={{display:"flex",gap:8}}>
+              <button onClick={()=>{navigator.clipboard.writeText(newGroupCode);showToast("Código copiado ✓");}} style={{flex:1,padding:"10px",background:"rgba(212,175,55,0.1)",border:"1px solid #d4af37",borderRadius:10,color:"#d4af37",fontWeight:700,fontSize:12,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>
+                <Icon name="copy" size={14}/> Copiar
+              </button>
+              <button onClick={()=>{if(navigator.share){navigator.share({title:"Hoje Há Jogo",text:`Junta-te ao grupo!\nCódigo: ${newGroupCode}`,url:"https://hojehajogo.pt"});}else{navigator.clipboard.writeText(newGroupCode);showToast("Código copiado ✓");}}} style={{flex:1,padding:"10px",background:"#d4af37",border:"none",borderRadius:10,color:"#0a0a0a",fontWeight:800,fontSize:12,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>
+                <Icon name="share" size={14}/> Partilhar
+              </button>
+            </div>
+            <button onClick={()=>setNewGroupCode(null)} style={{marginTop:10,background:"transparent",border:"none",color:"#4b5563",fontSize:11,cursor:"pointer"}}>Fechar</button>
           </div>
         )}
 
@@ -1750,6 +1770,41 @@ function AdminView({gameInfo,cdStr,confirmed,waiting,notYet,guests,spotsLeft,pla
   );
 }
 
+
+// ── GROUP CODE CARD ───────────────────────────────────────────────────────────
+function GroupCodeCard({groupId}) {
+  const [code, setCode] = useState(null);
+  const [copied, setCopied] = useState(false);
+
+  useEffect(()=>{
+    if(!groupId) return;
+    supabase.from("groups").select("invite_code").eq("id",groupId).single().then(({data})=>{ if(data) setCode(data.invite_code); });
+  },[groupId]);
+
+  if(!code) return null;
+
+  const handleShare = () => {
+    if(navigator.share){ navigator.share({title:"Hoje Há Jogo",text:`Junta-te ao grupo!\nCódigo: ${code}`,url:"https://hojehajogo.pt"}); }
+    else { navigator.clipboard.writeText(code).then(()=>{ setCopied(true); setTimeout(()=>setCopied(false),2000); }); }
+  };
+
+  return (
+    <div style={{marginTop:16,background:"#111",border:"1px solid #1f1f1f",borderRadius:14,padding:"14px 16px"}}>
+      <div style={{fontSize:10,fontWeight:700,color:"#4b5563",letterSpacing:2,marginBottom:8}}>CÓDIGO DO GRUPO</div>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+        <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:28,color:"#d4af37",letterSpacing:5}}>{code}</div>
+        <div style={{display:"flex",gap:6}}>
+          <button onClick={()=>{navigator.clipboard.writeText(code).then(()=>{setCopied(true);setTimeout(()=>setCopied(false),2000);});}} style={{background:"rgba(212,175,55,0.1)",border:"1px solid #d4af37",borderRadius:8,padding:"7px 12px",color:copied?"#4ade80":"#d4af37",fontWeight:700,fontSize:11,cursor:"pointer",display:"flex",alignItems:"center",gap:5}}>
+            <Icon name="copy" size={13}/>{copied?"Copiado!":"Copiar"}
+          </button>
+          <button onClick={handleShare} style={{background:"#d4af37",border:"none",borderRadius:8,padding:"7px 12px",color:"#0a0a0a",fontWeight:800,fontSize:11,cursor:"pointer",display:"flex",alignItems:"center",gap:5}}>
+            <Icon name="share" size={13}/>Partilhar
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 // ── CSS ──────────────────────────────────────────────────────────────────────
 function getCss() {
