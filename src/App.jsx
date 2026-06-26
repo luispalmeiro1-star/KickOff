@@ -874,8 +874,8 @@ function CriarContaView({setView, showToast}) {
   );
 }
 
-// ── CRIAR GRUPO VIEW — ecrã 3 permanente ──────────────────────────────────────
-function CriarGrupoView({setView, showToast, onLogin, reloadAll}) {
+// ── CRIAR GRUPO VIEW ────────────────────────────────────────────────────────
+const CriarGrupoView = React.memo(function CriarGrupoView({setView, showToast, onLogin, reloadAll}) {
   const [step, setStep]               = useState(()=>{
     // Se já há um código pendente no localStorage, ir direto para passo 3
     return localStorage.getItem("hhb_pending_code") ? 3 : 1;
@@ -910,26 +910,21 @@ function CriarGrupoView({setView, showToast, onLogin, reloadAll}) {
     setLoading(true);
     try {
       const code=generateCode();
-      // Guardar código E nome do grupo imediatamente no localStorage
-      localStorage.setItem("hhb_pending_code", code);
-      localStorage.setItem("hhb_pending_group", groupName.trim());
       const{data:group,error:ge}=await supabase.from("groups").insert({name:groupName.trim(),location:location.trim(),time,cost_per_player:Number(cost),invite_code:code}).select().single();
       if(ge) throw ge;
       const color=AVATAR_COLORS[Math.floor(Math.random()*AVATAR_COLORS.length)];
-      const{error:pe}=await supabase.from("players").insert({name:adminName.trim(),username:adminUsername.trim().toLowerCase(),password:adminPassword,phone:adminPhone||null,is_admin:true,status:"out",paid:false,is_guest:false,avatar_color:color,group_id:group.id});
+      const{data:player,error:pe}=await supabase.from("players").insert({name:adminName.trim(),username:adminUsername.trim().toLowerCase(),password:adminPassword,phone:adminPhone||null,is_admin:true,status:"out",paid:false,is_guest:false,avatar_color:color,group_id:group.id}).select().single();
       if(pe) throw pe;
       const nw=()=>{const d=new Date();const day=d.getDay();const diff=(3-day+7)%7||7;d.setDate(d.getDate()+diff);return d.toISOString().split("T")[0];};
       await supabase.from("game_info").insert({location:location.trim()||"A definir",date:nw(),time,app_name:groupName.trim(),cost_per_player:Number(cost),group_id:group.id});
-      const groupData={...group,adminUsername:adminUsername.trim().toLowerCase(),adminPassword};
-      setInviteCode(code);
-      setCreatedGroup(groupData);
-      localStorage.setItem("hhb_pending_group_data", JSON.stringify(groupData));
-      setGroupName(groupName.trim());
-      setStep(3);
+      // Guardar sessão e código — entrar direto sem ecrã intermédio
+      localStorage.setItem("hhb_session",JSON.stringify({playerId:player.id,groupId:group.id}));
+      localStorage.setItem("hhb_new_group_code",code);
+      window.location.reload();
     } catch(e) {
       showToast("Erro ao criar grupo: "+e.message,"err");
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   const handleShare = () => {
@@ -1013,7 +1008,7 @@ function CriarGrupoView({setView, showToast, onLogin, reloadAll}) {
       </div>
     </div>
   );
-}
+});
 
 // ── ENTRAR CONVITE VIEW ───────────────────────────────────────────────────────
 function EntrarConviteView({setView, showToast}) {
