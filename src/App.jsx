@@ -186,22 +186,10 @@ export default function App() {
   const loadPlayers    = useCallback(async(gid=null)=>{ let q=supabase.from("players").select("*").order("id"); if(gid) q=q.eq("group_id",gid); const{data}=await q; if(data)setPlayers(data); },[]);
   const loadGameInfo   = useCallback(async(gid=null)=>{
     let q=supabase.from("game_info").select("*");
-    if(gid){q=q.eq("group_id",gid).limit(1).maybeSingle();}else{q=q.eq("id",1).maybeSingle();}
+    if(gid){q=q.eq("group_id",gid).limit(1).maybeSingle();}
+    else{q=q.eq("id",1).maybeSingle();}
     const{data}=await q;
-    if(data){ setGameInfo(data); }
-    else if(gid){
-      // Só cria se realmente não existe
-      const{data:exists}=await supabase.from("game_info").select("id").eq("group_id",gid).maybeSingle();
-      if(!exists){
-        const nw=()=>{const d=new Date();const day=d.getDay();const diff=(3-day+7)%7||7;d.setDate(d.getDate()+diff);return d.toISOString().split("T")[0];};
-        const{data:grp}=await supabase.from("groups").select("name,location,time,cost_per_player").eq("id",gid).maybeSingle();
-        const{data:created}=await supabase.from("game_info").insert({location:grp?.location||"A definir",date:nw(),time:grp?.time||"22:30",app_name:grp?.name||"Hoje Há Jogo",cost_per_player:grp?.cost_per_player||3,group_id:gid}).select().maybeSingle();
-        if(created) setGameInfo(created);
-      } else {
-        const{data:found}=await supabase.from("game_info").select("*").eq("group_id",gid).limit(1).maybeSingle();
-        if(found) setGameInfo(found);
-      }
-    }
+    if(data) setGameInfo(data);
   },[]);
   const loadHistory    = useCallback(async(gid=null)=>{ let q=supabase.from("game_history").select("*").order("date",{ascending:false}); if(gid) q=q.eq("group_id",gid); const{data}=await q; if(data){setHistory(data);setPiggybank(data.reduce((s,g)=>s+(Number(g.collected)||0)-(g.players_count>0?RENT:0),0));} },[]);
   const loadDebts      = useCallback(async(gid=null)=>{ let q=supabase.from("debts").select("*").order("created_at"); if(gid) q=q.eq("group_id",gid); const{data}=await q; if(data)setDebts(data); },[]);
