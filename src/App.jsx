@@ -214,6 +214,18 @@ export default function App() {
   },[loadPlayers,loadGameInfo,loadHistory,loadDebts,loadMessages,loadMvp,loadAttendance]);
 
   useEffect(()=>{
+    // Verificar se há groupId no URL (vindo de mudança de grupo)
+    const params = new URLSearchParams(window.location.search);
+    const urlGroupId = params.get("g");
+    if(urlGroupId) {
+      const gid = Number(urlGroupId);
+      const saved = JSON.parse(localStorage.getItem("hhb_session")||"{}");
+      if(saved.playerId) {
+        localStorage.setItem("hhb_session", JSON.stringify({playerId:saved.playerId, groupId:gid}));
+      }
+      // Limpar o URL sem recarregar
+      window.history.replaceState({}, "", window.location.pathname);
+    }
     (async()=>{ setLoading(true); await reloadAll(); setLoading(false); })();
     const subs=[
       supabase.channel("players_ch").on("postgres_changes",{event:"*",schema:"public",table:"players"},()=>loadPlayers(groupIdRef.current)).subscribe(),
@@ -544,18 +556,9 @@ export default function App() {
       <style>{getCss()}</style>
       {toast&&<div className={`toast toast-${toast.type}`}>{toast.msg}</div>}
       {view==="landing"        && <LandingView setView={setView}/>}
-      {view==="meus-grupos"    && <MeusGruposView groups={myGroups} onSelect={async(groupId)=>{
-        // Guardar nova sessão com groupId
+      {view==="meus-grupos"    && <MeusGruposView groups={myGroups} onSelect={(groupId)=>{
         localStorage.setItem("hhb_session",JSON.stringify({playerId:currentUser.id,groupId}));
-        // Atualizar ref e recarregar dados do novo grupo
-        groupIdRef.current=groupId;
-        setPlayers([]);
-        setGameInfo({location:"",date:nextWednesday(),time:"22:30",app_name:"Hoje Há Jogo",cost_per_player:3});
-        setHistory([]); setDebts([]); setMessages([]); setMvpVotes([]); setAttendance([]);
-        await reloadAll(groupId);
-        // Determinar se é admin neste grupo
-        const{data:pg}=await supabase.from("player_groups").select("is_admin").eq("player_id",currentUser.id).eq("group_id",groupId).maybeSingle();
-        setView(pg?.is_admin?"admin":"player");
+        window.location.href = window.location.pathname + "?g=" + groupId;
       }} onLogout={handleLogout} onCriarGrupo={()=>{ setCurrentUser(null); setView("criar-grupo"); }} onEntrarCodigo={()=>setView("entrar-convite")} currentUser={currentUser}/>}
       {view==="login"          && <LoginView onLogin={handleLogin} showToast={showToast} setView={setView}/>}
       {view==="criar-grupo"    && <CriarGrupoView setView={setView} showToast={showToast} onLogin={handleLogin} reloadAll={reloadAll}/>}
