@@ -170,6 +170,7 @@ export default function App() {
   const [piggybank, setPiggybank]     = useState(0);
   const [currentUser, setCurrentUser] = useState(null);
   const [view, setView]               = useState("landing");
+  const [myGroups, setMyGroups]       = useState([]);
   const [toast, setToast]             = useState(null);
   const [adminTab, setAdminTab]       = useState("jogo");
   const [loading, setLoading]         = useState(true);
@@ -274,14 +275,27 @@ export default function App() {
 
   useEffect(()=>{
     if(loading||currentUser||players.length===0) return;
-    try{
-      const saved=JSON.parse(localStorage.getItem("hhb_session"));
-      if(saved?.playerId){
-        const p=players.find(pl=>pl.id===saved.playerId);
-        if(p){ setCurrentUser(p); setView(p.is_admin?"admin":"player"); if(saved.groupId) reloadAll(saved.groupId); }
-        else setView("landing");
-      } else setView("landing");
-    }catch(e){setView("landing");}
+    (async()=>{
+      try{
+        const saved=JSON.parse(localStorage.getItem("hhb_session"));
+        if(saved?.playerId){
+          const p=players.find(pl=>pl.id===saved.playerId);
+          if(p){
+            setCurrentUser(p);
+            if(saved.groupId){
+              groupIdRef.current=saved.groupId;
+              reloadAll(saved.groupId);
+              setView(p.is_admin?"admin":"player");
+            } else {
+              // Sem groupId guardado — verificar grupos
+              const{data:pg}=await supabase.from("player_groups").select("group_id, is_admin, groups(id,name,location,time)").eq("player_id",p.id);
+              if(pg&&pg.length>1){ setMyGroups(pg); setView("meus-grupos"); }
+              else setView(p.is_admin?"admin":"player");
+            }
+          } else setView("landing");
+        } else setView("landing");
+      }catch(e){setView("landing");}
+    })();
   },[loading,players]);
 
   const members   = players.filter(p=>!p.is_guest);
@@ -314,12 +328,23 @@ export default function App() {
     }
     const p=result?.player||null;
     if(!p) return false;
-    const effectiveGroupId=p.group_id||null;
-    localStorage.setItem("hhb_session",JSON.stringify({playerId:p.id,groupId:effectiveGroupId}));
-    if(effectiveGroupId) await reloadAll(effectiveGroupId);
-    else await reloadAll();
-    setCurrentUser(p); setView(p.is_admin?"admin":"player");
+    setCurrentUser(p);
     linkOneSignal(p.id);
+    // Verificar quantos grupos este player tem
+    const{data:playerGroups}=await supabase.from("player_groups").select("group_id, is_admin, groups(id,name,location,time)").eq("player_id",p.id);
+    if(playerGroups&&playerGroups.length>1){
+      // Tem múltiplos grupos — mostrar seleção
+      setMyGroups(playerGroups);
+      setView("meus-grupos");
+      localStorage.setItem("hhb_session",JSON.stringify({playerId:p.id,groupId:null}));
+    } else {
+      // Tem um grupo (ou nenhum) — entrar direto
+      const effectiveGroupId=p.group_id||null;
+      localStorage.setItem("hhb_session",JSON.stringify({playerId:p.id,groupId:effectiveGroupId}));
+      if(effectiveGroupId){ groupIdRef.current=effectiveGroupId; await reloadAll(effectiveGroupId); }
+      else await reloadAll();
+      setView(p.is_admin?"admin":"player");
+    }
     return true;
   };
   const handleLogout  = ()=>{ setCurrentUser(null); setView("landing"); setViewingDate(null); };
@@ -362,6 +387,8 @@ export default function App() {
     const groupId=currentUser?.group_id||null;
     const result=await callRegister({name:name.trim(),username:cleanUsername,phone:phone?.trim()||null,password:password.trim(),is_admin:false,avatar_color:color,group_id:groupId});
     if(result?.error){showToast(result.error,"err");return;}
+    // Registar em player_groups
+    if(result.player&&groupId) await supabase.from("player_groups").upsert({player_id:result.player.id,group_id:groupId,is_admin:false},{onConflict:"player_id,group_id"});
     showToast(`${name} adicionado! 🎉`);
   };
   const updateGameInfo = async(patch)=>{ setGameInfo(prev=>({...prev,...patch})); await supabase.from("game_info").update(patch).eq("id",gameInfo.id||1); showToast("Jogo atualizado ✓"); };
@@ -478,6 +505,7 @@ export default function App() {
       <style>{getCss()}</style>
       {toast&&<div className={`toast toast-${toast.type}`}>{toast.msg}</div>}
       {view==="landing"        && <LandingView setView={setView}/>}
+      {view==="meus-grupos"    && <MeusGruposView groups={myGroups} onSelect={async(groupId)=>{ groupIdRef.current=groupId; await reloadAll(groupId); localStorage.setItem("hhb_session",JSON.stringify({playerId:currentUser.id,groupId})); setView(currentUser.is_admin?"admin":"player"); }} onLogout={handleLogout} onCriarGrupo={()=>{ setCurrentUser(null); setView("criar-grupo"); }} currentUser={currentUser}/>}
       {view==="login"          && <LoginView onLogin={handleLogin} showToast={showToast} setView={setView}/>}
       {view==="criar-grupo"    && <CriarGrupoView setView={setView} showToast={showToast} onLogin={handleLogin} reloadAll={reloadAll}/>}
       {view==="entrar-convite" && <EntrarConviteView setView={setView} showToast={showToast}/>}
@@ -956,7 +984,8 @@ function CriarGrupoView({setView, showToast, onLogin, reloadAll}) {
       const player=regResult.player;
       const nw=()=>{const d=new Date();const day=d.getDay();const diff=(3-day+7)%7||7;d.setDate(d.getDate()+diff);return d.toISOString().split("T")[0];};
       await supabase.from("game_info").insert({location:location.trim()||"A definir",date:nw(),time,app_name:groupName.trim(),cost_per_player:Number(cost),group_id:group.id});
-      // Guardar sessão e código — entrar direto sem ecrã intermédio
+      // Registar na tabela player_groups
+      await supabase.from("player_groups").upsert({player_id:player.id,group_id:group.id,is_admin:true},{onConflict:"player_id,group_id"});
       localStorage.setItem("hhb_session",JSON.stringify({playerId:player.id,groupId:group.id}));
       localStorage.setItem("hhb_new_group_code",code);
       window.location.reload();
@@ -1086,6 +1115,8 @@ function EntrarConviteView({setView, showToast}) {
     if(!p.group_id){
       await supabase.from("players").update({group_id:group.id}).eq("id",p.id);
     }
+    // Registar na tabela player_groups
+    await supabase.from("player_groups").upsert({player_id:p.id,group_id:group.id,is_admin:false},{onConflict:"player_id,group_id"});
     localStorage.setItem("hhb_session",JSON.stringify({playerId:p.id,groupId:group.id}));
     window.location.reload();
   };
@@ -1100,6 +1131,8 @@ function EntrarConviteView({setView, showToast}) {
     if(regResult?.error){showToast(regResult.error,"err");setLoading(false);return;}
     const inserted=regResult.player;
     showToast("Conta criada! A entrar... 🎉");
+    // Registar na tabela player_groups
+    await supabase.from("player_groups").upsert({player_id:inserted.id,group_id:group.id,is_admin:false},{onConflict:"player_id,group_id"});
     localStorage.setItem("hhb_session",JSON.stringify({playerId:inserted.id,groupId:group.id}));
     await new Promise(r=>setTimeout(r,800));
     window.location.reload();
@@ -1825,6 +1858,60 @@ function AdminView({gameInfo,cdStr,confirmed,waiting,notYet,guests,spotsLeft,pla
   );
 }
 
+
+// ── MEUS GRUPOS VIEW ─────────────────────────────────────────────────────────
+function MeusGruposView({groups=[], onSelect, onLogout, onCriarGrupo, currentUser}) {
+  const [loading, setLoading] = useState(null);
+  return (
+    <div style={{background:"#0a0a0a",minHeight:"100vh",padding:"24px"}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:28}}>
+        <div>
+          <div style={{fontSize:10,fontWeight:700,color:"#4b5563",letterSpacing:2,marginBottom:4}}>BEM-VINDO</div>
+          <div style={{fontSize:22,fontWeight:800,color:"white"}}>{currentUser?.name}</div>
+        </div>
+        <button onClick={onLogout} style={{background:"transparent",border:"none",color:"#6b7280",cursor:"pointer",display:"flex",alignItems:"center",gap:6,fontSize:12}}>
+          <Icon name="logout" size={14}/> Sair
+        </button>
+      </div>
+
+      <div style={{fontSize:10,fontWeight:700,color:"#4b5563",letterSpacing:2,marginBottom:14}}>OS MEUS GRUPOS</div>
+
+      <div style={{display:"flex",flexDirection:"column",gap:10}}>
+        {groups.map((pg,i)=>{
+          const group=pg.groups;
+          if(!group) return null;
+          return (
+            <button key={i} onClick={async()=>{
+              setLoading(group.id);
+              await onSelect(group.id);
+              setLoading(null);
+            }} style={{width:"100%",background:"#111",border:"1px solid #1f1f1f",borderRadius:14,padding:"16px",cursor:"pointer",display:"flex",alignItems:"center",gap:14,textAlign:"left"}}>
+              <div style={{width:44,height:44,background:"rgba(22,163,74,0.15)",border:"1px solid #16a34a33",borderRadius:12,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,fontSize:22}}>
+                ⚽
+              </div>
+              <div style={{flex:1}}>
+                <div style={{color:"white",fontSize:15,fontWeight:700,marginBottom:3}}>{group.name}</div>
+                <div style={{color:"#4b5563",fontSize:12,display:"flex",gap:8}}>
+                  {group.time&&<span>🕐 {group.time}</span>}
+                  {group.location&&<span>📍 {group.location}</span>}
+                </div>
+                {pg.is_admin&&<div style={{marginTop:4}}><span style={{background:"rgba(212,175,55,0.15)",color:"#d4af37",fontSize:10,fontWeight:700,padding:"2px 8px",borderRadius:20}}>Admin</span></div>}
+              </div>
+              {loading===group.id
+                ?<div style={{width:20,height:20,border:"2px solid #16a34a",borderTopColor:"transparent",borderRadius:"50%",animation:"spin 0.8s linear infinite",flexShrink:0}}/>
+                :<Icon name="right" size={16}/>
+              }
+            </button>
+          );
+        })}
+      </div>
+
+      <button onClick={onCriarGrupo} style={{width:"100%",marginTop:14,background:"transparent",border:"1px dashed #2a2a2a",borderRadius:14,padding:"14px",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:8,color:"#4b5563",fontSize:13,fontWeight:600}}>
+        <Icon name="plus" size={16}/> Criar novo grupo
+      </button>
+    </div>
+  );
+}
 
 // ── GROUP CODE CARD ───────────────────────────────────────────────────────────
 function GroupCodeCard({groupId}) {
