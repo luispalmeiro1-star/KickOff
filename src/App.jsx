@@ -7,6 +7,16 @@ const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || "https://juoheqnocylux
 const ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || "sb_publishable_63hRr7RNMV55-hY1VyaRAA_gt86VwS2";
 const REGISTER_URL = `${SUPABASE_URL}/functions/v1/smooth-processor`;
 const LOGIN_URL = `${SUPABASE_URL}/functions/v1/auth-login`;
+const VERIFY_URL = `${SUPABASE_URL}/functions/v1/verify-invite`;
+
+async function callVerifyInvite(code) {
+  const res = await fetch(VERIFY_URL, {
+    method: "POST",
+    headers: {"Content-Type": "application/json", "Authorization": `Bearer ${ANON_KEY}`},
+    body: JSON.stringify({code})
+  });
+  return await res.json();
+}
 
 async function callRegister(data) {
   const res = await fetch(REGISTER_URL, {
@@ -1053,10 +1063,10 @@ function EntrarConviteView({setView, showToast}) {
   const checkCode = async() => {
     if(!code.trim()){showToast("Insere o código de convite","err");return;}
     setLoading(true);
-    const{data}=await supabase.from("groups").select("*").eq("invite_code",code.trim().toUpperCase()).single();
+    const result=await callVerifyInvite(code.trim());
     setLoading(false);
-    if(!data){showToast("Código inválido ou expirado","err");return;}
-    setGroup(data); setStep(2);
+    if(result?.error){showToast(result.error,"err");return;}
+    setGroup(result.group); setStep(2);
   };
 
   const handleLogin = async() => {
@@ -1628,6 +1638,25 @@ function AdminView({gameInfo,cdStr,confirmed,waiting,notYet,guests,spotsLeft,pla
         )}
 
         <RotatingHighlights members={members} history={history} mvpVotes={mvpVotes} confirmed={confirmed} gameInfo={gameInfo}/>
+
+        {/* Banner vencedor — aparece após fecho automático se não foi definido */}
+        {history.length>0&&history[0].winner_team===null&&history[0].players_count>0&&(
+          <div style={{background:"rgba(37,99,235,0.12)",border:"2px solid #2563eb",borderRadius:14,padding:"14px 16px",marginBottom:14}}>
+            <div style={{fontSize:13,fontWeight:800,color:"#93c5fd",marginBottom:10}}>🏆 Qual foi a equipa vencedora do último jogo?</div>
+            <div style={{display:"flex",gap:8}}>
+              {["A","B","C"].map(t=>(
+                <button key={t} onClick={async()=>{
+                  await supabase.from("game_history").update({winner_team:t}).eq("id",history[0].id);
+                  showToast(`Equipa ${t} registada como vencedora ✓`);
+                  await reloadAll(currentUser?.group_id);
+                }} style={{flex:1,padding:"10px",borderRadius:10,border:"1px solid #2563eb",background:"rgba(37,99,235,0.15)",color:"#93c5fd",fontWeight:800,fontSize:14,cursor:"pointer"}}>
+                  Equipa {t}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
         <GroupStatusCard confirmed={confirmed} notYet={notYet} members={members} players={players}/>
 
         <div className="tabs">
