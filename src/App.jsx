@@ -3,9 +3,10 @@ import { supabase } from "./supabase.js";
 
 
 // ── EDGE FUNCTION HELPERS ─────────────────────────────────────────────────────
-const REGISTER_URL = "https://juoheqnocyluxsqzcdcr.supabase.co/functions/v1/smooth-processor";
-const LOGIN_URL = "https://juoheqnocyluxsqzcdcr.supabase.co/functions/v1/auth-login";
-const ANON_KEY = "sb_publishable_63hRr7RNMV55-hY1VyaRAA_gt86VwS2";
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || "https://juoheqnocyluxsqzcdcr.supabase.co";
+const ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || "sb_publishable_63hRr7RNMV55-hY1VyaRAA_gt86VwS2";
+const REGISTER_URL = `${SUPABASE_URL}/functions/v1/smooth-processor`;
+const LOGIN_URL = `${SUPABASE_URL}/functions/v1/auth-login`;
 
 async function callRegister(data) {
   const res = await fetch(REGISTER_URL, {
