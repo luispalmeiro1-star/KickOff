@@ -1964,8 +1964,8 @@ function MeusGruposView({groups=[], onSelect, onLogout, onCriarGrupo, onEntrarCo
             if(!group) return null;
             return (
               <button key={i} onClick={async()=>{
-                setLoading(group.id);
-                await onSelect(group.id);
+                setLoading(pg.group_id);
+                await onSelect(pg.group_id);
                 setLoading(null);
               }} style={{width:"100%",background:"#111",border:"1px solid #1f1f1f",borderRadius:14,padding:"16px",cursor:"pointer",display:"flex",alignItems:"center",gap:14,textAlign:"left"}}>
                 <div style={{width:44,height:44,background:"rgba(22,163,74,0.15)",border:"1px solid #16a34a33",borderRadius:12,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,fontSize:22}}>
@@ -1979,7 +1979,7 @@ function MeusGruposView({groups=[], onSelect, onLogout, onCriarGrupo, onEntrarCo
                   </div>
                   {pg.is_admin&&<div style={{marginTop:4}}><span style={{background:"rgba(212,175,55,0.15)",color:"#d4af37",fontSize:10,fontWeight:700,padding:"2px 8px",borderRadius:20}}>Admin</span></div>}
                 </div>
-                {loading===group.id
+                {loading===pg.group_id
                   ?<div style={{width:20,height:20,border:"2px solid #16a34a",borderTopColor:"transparent",borderRadius:"50%",animation:"spin 0.8s linear infinite",flexShrink:0}}/>
                   :<Icon name="right" size={16}/>
                 }
