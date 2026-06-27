@@ -516,7 +516,7 @@ export default function App() {
       <style>{getCss()}</style>
       {toast&&<div className={`toast toast-${toast.type}`}>{toast.msg}</div>}
       {view==="landing"        && <LandingView setView={setView}/>}
-      {view==="meus-grupos"    && <MeusGruposView groups={myGroups} onSelect={async(groupId)=>{ groupIdRef.current=groupId; await reloadAll(groupId); localStorage.setItem("hhb_session",JSON.stringify({playerId:currentUser.id,groupId})); setView(currentUser.is_admin?"admin":"player"); }} onLogout={handleLogout} onCriarGrupo={()=>{ setCurrentUser(null); setView("criar-grupo"); }} currentUser={currentUser}/>}
+      {view==="meus-grupos"    && <MeusGruposView groups={myGroups} onSelect={async(groupId)=>{ groupIdRef.current=groupId; await reloadAll(groupId); localStorage.setItem("hhb_session",JSON.stringify({playerId:currentUser.id,groupId})); setView(currentUser.is_admin?"admin":"player"); }} onLogout={handleLogout} onCriarGrupo={()=>{ setCurrentUser(null); setView("criar-grupo"); }} onEntrarCodigo={()=>setView("entrar-convite")} currentUser={currentUser}/>}
       {view==="login"          && <LoginView onLogin={handleLogin} showToast={showToast} setView={setView}/>}
       {view==="criar-grupo"    && <CriarGrupoView setView={setView} showToast={showToast} onLogin={handleLogin} reloadAll={reloadAll}/>}
       {view==="entrar-convite" && <EntrarConviteView setView={setView} showToast={showToast}/>}
@@ -526,7 +526,7 @@ export default function App() {
       {view==="debts"   && liveUser && <DebtsView   {...shared} player={liveUser} onBack={()=>setView(liveUser.is_admin?"admin":"player")}/>}
       {view==="stats"   && liveUser && <StatsView   {...shared} player={liveUser} onBack={()=>setView(liveUser.is_admin?"admin":"player")}/>}
       {view==="chat"    && liveUser && <ChatView    {...shared} player={liveUser} onSendMessage={t=>sendMessage(t,liveUser.id,liveUser.name)} onBack={()=>setView(liveUser.is_admin?"admin":"player")}/>}
-      {view==="profile" && liveUser && <ProfileView {...shared} player={liveUser} onUpdateProfile={(name,pw,color,phone)=>updateProfile(liveUser.id,name,pw,color,phone)} onBack={()=>setView(liveUser.is_admin?"admin":"player")} onLogout={handleLogout} onSwitchAccount={switchAccount} onMudarGrupo={handleMudarGrupo}/>}
+      {view==="profile" && liveUser && <ProfileView {...shared} player={liveUser} onUpdateProfile={(name,pw,color,phone)=>updateProfile(liveUser.id,name,pw,color,phone)} onBack={()=>setView(liveUser.is_admin?"admin":"player")} onLogout={handleLogout} onSwitchAccount={switchAccount} onMudarGrupo={handleMudarGrupo} onEntrarCodigo={()=>setView("entrar-convite")}/>}
     </div>
   );
 }
@@ -1460,7 +1460,7 @@ function ChatView({messages=[],players=[],player,onSendMessage,onBack}) {
 }
 
 // ── PROFILE VIEW ─────────────────────────────────────────────────────────────
-function ProfileView({player,onUpdateProfile,onBack,onLogout,onSwitchAccount,onMudarGrupo}) {
+function ProfileView({player,onUpdateProfile,onBack,onLogout,onSwitchAccount,onMudarGrupo,onEntrarCodigo}) {
   const [newName,setNewName]=useState(player.name);
   const [newPhone,setNewPhone]=useState(player.phone||"");
   const [newPw,setNewPw]=useState("");
@@ -1500,6 +1500,9 @@ function ProfileView({player,onUpdateProfile,onBack,onLogout,onSwitchAccount,onM
         </div>
         <button onClick={onMudarGrupo} style={{width:"100%",marginTop:14,padding:"11px",borderRadius:10,border:"2px solid #1f1f1f",background:"transparent",color:"#9ca3af",fontWeight:800,fontSize:12,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>
           <Icon name="people" size={14}/> OS MEUS GRUPOS
+        </button>
+        <button onClick={onEntrarCodigo} style={{width:"100%",marginTop:8,padding:"11px",borderRadius:10,border:"2px solid #1f1f1f",background:"transparent",color:"#9ca3af",fontWeight:800,fontSize:12,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>
+          <Icon name="key" size={14}/> ENTRAR NOUTRO GRUPO
         </button>
         <button onClick={onSwitchAccount} style={{width:"100%",marginTop:8,padding:"11px",borderRadius:10,border:"2px solid rgba(239,68,68,0.3)",background:"transparent",color:"#f87171",fontWeight:800,fontSize:12,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>
           <Icon name="logout" size={14}/> TROCAR DE CONTA
@@ -1874,55 +1877,80 @@ function AdminView({gameInfo,cdStr,confirmed,waiting,notYet,guests,spotsLeft,pla
 
 
 // ── MEUS GRUPOS VIEW ─────────────────────────────────────────────────────────
-function MeusGruposView({groups=[], onSelect, onLogout, onCriarGrupo, currentUser}) {
+function MeusGruposView({groups=[], onSelect, onLogout, onCriarGrupo, onEntrarCodigo, currentUser}) {
   const [loading, setLoading] = useState(null);
   return (
-    <div style={{background:"#0a0a0a",minHeight:"100vh",padding:"24px"}}>
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:28}}>
+    <div style={{background:"#0a0a0a",minHeight:"100vh",display:"flex",flexDirection:"column"}}>
+      {/* Header */}
+      <div style={{background:"#111",padding:"20px 20px 16px",borderBottom:"1px solid #1f1f1f",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
         <div>
-          <div style={{fontSize:10,fontWeight:700,color:"#4b5563",letterSpacing:2,marginBottom:4}}>BEM-VINDO</div>
-          <div style={{fontSize:22,fontWeight:800,color:"white"}}>{currentUser?.name}</div>
+          <div style={{fontSize:10,fontWeight:700,color:"#4b5563",letterSpacing:2,marginBottom:4}}>BEM-VINDO DE VOLTA</div>
+          <div style={{fontSize:20,fontWeight:800,color:"white"}}>{currentUser?.name}</div>
         </div>
-        <button onClick={onLogout} style={{background:"transparent",border:"none",color:"#6b7280",cursor:"pointer",display:"flex",alignItems:"center",gap:6,fontSize:12}}>
+        <button onClick={onLogout} style={{background:"transparent",border:"none",color:"#6b7280",cursor:"pointer",display:"flex",alignItems:"center",gap:6,fontSize:12,fontWeight:600}}>
           <Icon name="logout" size={14}/> Sair
         </button>
       </div>
 
-      <div style={{fontSize:10,fontWeight:700,color:"#4b5563",letterSpacing:2,marginBottom:14}}>OS MEUS GRUPOS</div>
+      <div style={{flex:1,padding:"20px"}}>
+        {/* Logo */}
+        <div style={{textAlign:"center",marginBottom:24}}>
+          <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:28,color:"#d4af37",letterSpacing:3}}>🏟️ OS MEUS GRUPOS</div>
+        </div>
 
-      <div style={{display:"flex",flexDirection:"column",gap:10}}>
-        {groups.map((pg,i)=>{
-          const group=pg.groups;
-          if(!group) return null;
-          return (
-            <button key={i} onClick={async()=>{
-              setLoading(group.id);
-              await onSelect(group.id);
-              setLoading(null);
-            }} style={{width:"100%",background:"#111",border:"1px solid #1f1f1f",borderRadius:14,padding:"16px",cursor:"pointer",display:"flex",alignItems:"center",gap:14,textAlign:"left"}}>
-              <div style={{width:44,height:44,background:"rgba(22,163,74,0.15)",border:"1px solid #16a34a33",borderRadius:12,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,fontSize:22}}>
-                ⚽
-              </div>
-              <div style={{flex:1}}>
-                <div style={{color:"white",fontSize:15,fontWeight:700,marginBottom:3}}>{group.name}</div>
-                <div style={{color:"#4b5563",fontSize:12,display:"flex",gap:8}}>
-                  {group.time&&<span>🕐 {group.time}</span>}
-                  {group.location&&<span>📍 {group.location}</span>}
+        {/* Lista de grupos */}
+        <div style={{display:"flex",flexDirection:"column",gap:10,marginBottom:16}}>
+          {groups.map((pg,i)=>{
+            const group=pg.groups;
+            if(!group) return null;
+            return (
+              <button key={i} onClick={async()=>{
+                setLoading(group.id);
+                await onSelect(group.id);
+                setLoading(null);
+              }} style={{width:"100%",background:"#111",border:"1px solid #1f1f1f",borderRadius:14,padding:"16px",cursor:"pointer",display:"flex",alignItems:"center",gap:14,textAlign:"left"}}>
+                <div style={{width:44,height:44,background:"rgba(22,163,74,0.15)",border:"1px solid #16a34a33",borderRadius:12,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,fontSize:22}}>
+                  ⚽
                 </div>
-                {pg.is_admin&&<div style={{marginTop:4}}><span style={{background:"rgba(212,175,55,0.15)",color:"#d4af37",fontSize:10,fontWeight:700,padding:"2px 8px",borderRadius:20}}>Admin</span></div>}
-              </div>
-              {loading===group.id
-                ?<div style={{width:20,height:20,border:"2px solid #16a34a",borderTopColor:"transparent",borderRadius:"50%",animation:"spin 0.8s linear infinite",flexShrink:0}}/>
-                :<Icon name="right" size={16}/>
-              }
-            </button>
-          );
-        })}
-      </div>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{color:"white",fontSize:15,fontWeight:700,marginBottom:3}}>{group.name}</div>
+                  <div style={{color:"#4b5563",fontSize:12,display:"flex",gap:8,flexWrap:"wrap"}}>
+                    {group.time&&<span>🕐 {group.time}</span>}
+                    {group.location&&<span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:160}}>📍 {group.location}</span>}
+                  </div>
+                  {pg.is_admin&&<div style={{marginTop:4}}><span style={{background:"rgba(212,175,55,0.15)",color:"#d4af37",fontSize:10,fontWeight:700,padding:"2px 8px",borderRadius:20}}>Admin</span></div>}
+                </div>
+                {loading===group.id
+                  ?<div style={{width:20,height:20,border:"2px solid #16a34a",borderTopColor:"transparent",borderRadius:"50%",animation:"spin 0.8s linear infinite",flexShrink:0}}/>
+                  :<Icon name="right" size={16}/>
+                }
+              </button>
+            );
+          })}
+        </div>
 
-      <button onClick={onCriarGrupo} style={{width:"100%",marginTop:14,background:"transparent",border:"1px dashed #2a2a2a",borderRadius:14,padding:"14px",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:8,color:"#4b5563",fontSize:13,fontWeight:600}}>
-        <Icon name="plus" size={16}/> Criar novo grupo
-      </button>
+        {/* Ações */}
+        <div style={{display:"flex",flexDirection:"column",gap:8}}>
+          <button onClick={onEntrarCodigo} style={{width:"100%",background:"#111",border:"1px solid #1f1f1f",borderRadius:14,padding:"14px 16px",cursor:"pointer",display:"flex",alignItems:"center",gap:12,textAlign:"left"}}>
+            <div style={{width:36,height:36,background:"rgba(255,255,255,0.05)",borderRadius:10,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+              <Icon name="key" size={18}/>
+            </div>
+            <div>
+              <div style={{color:"white",fontSize:14,fontWeight:700}}>Entrar com código</div>
+              <div style={{color:"#4b5563",fontSize:12}}>Tens um código de convite</div>
+            </div>
+          </button>
+          <button onClick={onCriarGrupo} style={{width:"100%",background:"transparent",border:"1px dashed #2a2a2a",borderRadius:14,padding:"14px 16px",cursor:"pointer",display:"flex",alignItems:"center",gap:12,textAlign:"left"}}>
+            <div style={{width:36,height:36,background:"rgba(212,175,55,0.05)",borderRadius:10,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+              <Icon name="plus" size={18}/>
+            </div>
+            <div>
+              <div style={{color:"#9ca3af",fontSize:14,fontWeight:700}}>Criar grupo</div>
+              <div style={{color:"#4b5563",fontSize:12}}>Sou o organizador</div>
+            </div>
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
