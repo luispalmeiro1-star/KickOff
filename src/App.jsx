@@ -295,16 +295,26 @@ export default function App() {
           if(p){
             setCurrentUser(p);
             if(saved.groupId){
-              groupIdRef.current=saved.groupId;
-              reloadAll(saved.groupId);
-              setView(p.is_admin?"admin":"player");
+              // Verificar se o groupId é válido
+              const{data:grpCheck}=await supabase.from("groups").select("id").eq("id",saved.groupId).maybeSingle();
+              if(grpCheck){
+                groupIdRef.current=saved.groupId;
+                reloadAll(saved.groupId);
+                setView(p.is_admin?"admin":"player");
+              } else {
+                // groupId inválido — limpar e verificar grupos
+                localStorage.removeItem("hhb_session");
+                const{data:pg}=await supabase.from("player_groups").select("group_id, is_admin, groups(id,name,location,time)").eq("player_id",p.id);
+                if(pg&&pg.length>0){ setMyGroups(pg); setView("meus-grupos"); }
+                else setView("landing");
+              }
             } else {
               // Sem groupId guardado — verificar grupos
               const{data:pg}=await supabase.from("player_groups").select("group_id, is_admin, groups(id,name,location,time)").eq("player_id",p.id);
               if(pg&&pg.length>1){ setMyGroups(pg); setView("meus-grupos"); }
               else setView(p.is_admin?"admin":"player");
             }
-          } else setView("landing");
+          } else { localStorage.removeItem("hhb_session"); setView("landing"); }
         } else setView("landing");
       }catch(e){setView("landing");}
     })();
