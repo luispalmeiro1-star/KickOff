@@ -1063,14 +1063,14 @@ function EntrarConviteView({setView, showToast}) {
     if(!username.trim()||!password.trim()){showToast("Preenche os campos","err");return;}
     setLoading(true);
     const u=username.trim().toLowerCase();
-    // Primeiro tenta encontrar no grupo
-    let{data:candidates}=await supabase.from("players").select("*").eq("username",u).eq("group_id",group.id);
-    // Se não encontrar, tenta sem group_id (conta criada via "Criar conta")
-    if(!candidates||candidates.length===0){
-      const{data:orphans}=await supabase.from("players").select("*").eq("username",u).is("group_id",null);
-      candidates=orphans||[];
+    // Usar Edge Function para verificar password (suporta hashed)
+    // Primeiro tenta no grupo
+    let result=await callLogin(u, password, group.id);
+    // Se não encontrou, tenta sem group_id (conta criada via "Criar conta")
+    if(result?.error){
+      result=await callLogin(u, password, null);
     }
-    const p=candidates?.find(c=>c.password===password);
+    const p=result?.player||null;
     if(!p){showToast("Utilizador ou password incorretos","err");setLoading(false);return;}
     // Se o player não tem group_id, associa-o agora ao grupo
     if(!p.group_id){
