@@ -348,6 +348,17 @@ export default function App() {
     return true;
   };
   const handleLogout  = ()=>{ setCurrentUser(null); setView("landing"); setViewingDate(null); };
+  const handleMudarGrupo = async()=>{
+    if(!currentUser) return;
+    const{data:pg}=await supabase.from("player_groups").select("group_id, is_admin, groups(id,name,location,time)").eq("player_id",currentUser.id);
+    if(pg&&pg.length>1){
+      setMyGroups(pg);
+      setView("meus-grupos");
+    } else {
+      // Só tem um grupo — ir direto para entrar com convite
+      setView("entrar-convite");
+    }
+  };
   const switchAccount = ()=>{ localStorage.removeItem("hhb_session"); setCurrentUser(null); setView("landing"); setViewingDate(null); };
 
   const reassignAllTeams = async(updatedPlayers) => {
@@ -515,7 +526,7 @@ export default function App() {
       {view==="debts"   && liveUser && <DebtsView   {...shared} player={liveUser} onBack={()=>setView(liveUser.is_admin?"admin":"player")}/>}
       {view==="stats"   && liveUser && <StatsView   {...shared} player={liveUser} onBack={()=>setView(liveUser.is_admin?"admin":"player")}/>}
       {view==="chat"    && liveUser && <ChatView    {...shared} player={liveUser} onSendMessage={t=>sendMessage(t,liveUser.id,liveUser.name)} onBack={()=>setView(liveUser.is_admin?"admin":"player")}/>}
-      {view==="profile" && liveUser && <ProfileView {...shared} player={liveUser} onUpdateProfile={(name,pw,color,phone)=>updateProfile(liveUser.id,name,pw,color,phone)} onBack={()=>setView(liveUser.is_admin?"admin":"player")} onLogout={handleLogout} onSwitchAccount={switchAccount}/>}
+      {view==="profile" && liveUser && <ProfileView {...shared} player={liveUser} onUpdateProfile={(name,pw,color,phone)=>updateProfile(liveUser.id,name,pw,color,phone)} onBack={()=>setView(liveUser.is_admin?"admin":"player")} onLogout={handleLogout} onSwitchAccount={switchAccount} onMudarGrupo={handleMudarGrupo}/>}
     </div>
   );
 }
@@ -1449,7 +1460,7 @@ function ChatView({messages=[],players=[],player,onSendMessage,onBack}) {
 }
 
 // ── PROFILE VIEW ─────────────────────────────────────────────────────────────
-function ProfileView({player,onUpdateProfile,onBack,onLogout,onSwitchAccount}) {
+function ProfileView({player,onUpdateProfile,onBack,onLogout,onSwitchAccount,onMudarGrupo}) {
   const [newName,setNewName]=useState(player.name);
   const [newPhone,setNewPhone]=useState(player.phone||"");
   const [newPw,setNewPw]=useState("");
@@ -1487,7 +1498,10 @@ function ProfileView({player,onUpdateProfile,onBack,onLogout,onSwitchAccount}) {
           <button className="btn-primary" style={{justifyContent:"center"}} onClick={()=>{if(newPw&&newPw!==newPwC){alert("As passwords não coincidem!");return;}onUpdateProfile(newName,newPw,color,newPhone);setTimeout(()=>onLogout(),800);}}><Icon name="check" size={15}/> GUARDAR E SAIR</button>
           <p style={{fontSize:11,color:"#6b7280",textAlign:"center"}}>💡 Após guardar volta a entrar com os novos dados.</p>
         </div>
-        <button onClick={onSwitchAccount} style={{width:"100%",marginTop:14,padding:"11px",borderRadius:10,border:"2px solid rgba(239,68,68,0.3)",background:"transparent",color:"#f87171",fontWeight:800,fontSize:12,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>
+        <button onClick={onMudarGrupo} style={{width:"100%",marginTop:14,padding:"11px",borderRadius:10,border:"2px solid #1f1f1f",background:"transparent",color:"#9ca3af",fontWeight:800,fontSize:12,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>
+          <Icon name="people" size={14}/> OS MEUS GRUPOS
+        </button>
+        <button onClick={onSwitchAccount} style={{width:"100%",marginTop:8,padding:"11px",borderRadius:10,border:"2px solid rgba(239,68,68,0.3)",background:"transparent",color:"#f87171",fontWeight:800,fontSize:12,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>
           <Icon name="logout" size={14}/> TROCAR DE CONTA
         </button>
       </div>
