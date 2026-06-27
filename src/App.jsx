@@ -519,7 +519,7 @@ export default function App() {
       {view==="meus-grupos"    && <MeusGruposView groups={myGroups} onSelect={async(groupId)=>{ groupIdRef.current=groupId; await reloadAll(groupId); localStorage.setItem("hhb_session",JSON.stringify({playerId:currentUser.id,groupId})); setView(currentUser.is_admin?"admin":"player"); }} onLogout={handleLogout} onCriarGrupo={()=>{ setCurrentUser(null); setView("criar-grupo"); }} onEntrarCodigo={()=>setView("entrar-convite")} currentUser={currentUser}/>}
       {view==="login"          && <LoginView onLogin={handleLogin} showToast={showToast} setView={setView}/>}
       {view==="criar-grupo"    && <CriarGrupoView setView={setView} showToast={showToast} onLogin={handleLogin} reloadAll={reloadAll}/>}
-      {view==="entrar-convite" && <EntrarConviteView setView={setView} showToast={showToast} currentUser={currentUser} onGrupoAdicionado={async()=>{ if(currentUser){ const{data:pg}=await supabase.from("player_groups").select("group_id, is_admin, groups(id,name,location,time)").eq("player_id",currentUser.id); if(pg&&pg.length>1){setMyGroups(pg);setView("meus-grupos");}else setView(currentUser.is_admin?"admin":"player"); }else setView("landing"); }}/>}
+      {view==="entrar-convite" && <EntrarConviteView setView={setView} showToast={showToast} currentUser={currentUser} onGrupoAdicionado={async()=>{ if(currentUser){ const{data:pg}=await supabase.from("player_groups").select("group_id, is_admin, groups(id,name,location,time)").eq("player_id",currentUser.id); setMyGroups(pg||[]); setView("meus-grupos"); }else setView("landing"); }}/>}
       {view==="criar-conta"    && <CriarContaView setView={setView} showToast={showToast}/>}
       {view==="player"  && liveUser && <PlayerView  {...shared} view={view} player={liveUser} onToggle={()=>togglePresence(liveUser.id)} onAddGuest={n=>addGuest(n,liveUser.id)} onRemoveGuest={removeGuest} onUpdateProfile={(name,pw,color,phone)=>updateProfile(liveUser.id,name,pw,color,phone)} onVoteMvp={vid=>voteForMvp(liveUser.id,vid)} onSendMessage={t=>sendMessage(t,liveUser.id,liveUser.name)} onUpdatePosition={pos=>updatePosition(liveUser.id,pos)} onLogout={switchAccount} setView={setView}/>}
       {view==="admin"   && liveUser && <AdminView   {...shared} view={view} currentUser={liveUser} adminTab={adminTab} setAdminTab={setAdminTab} onTogglePaid={togglePaid} onRemovePlayer={removePlayer} onAddPlayer={addPlayer} onChangePassword={changePassword} onResetGame={resetGame} onTogglePresence={togglePresence} onAddGuest={n=>addGuest(n,liveUser.id)} onRemoveGuest={removeGuest} onUpdateGameInfo={updateGameInfo} onUpdateProfile={(name,pw,color,phone)=>updateProfile(liveUser.id,name,pw,color,phone)} onAddDebt={addDebt} onPayDebt={payDebt} onClearHistory={clearAllHistory} onSendPush={sendPushNotification} onReassignTeams={reassignAllTeams} onSendMessage={t=>sendMessage(t,liveUser.id,liveUser.name)} onVoteMvp={vid=>voteForMvp(liveUser.id,vid)} onLogout={switchAccount} showToast={showToast} setView={setView}/>}
@@ -1176,10 +1176,13 @@ function EntrarConviteView({setView, showToast, currentUser=null, onGrupoAdicion
             /* Já autenticado — só adicionar grupo */
             <button onClick={async()=>{
               setLoading(true);
-              await supabase.from("player_groups").upsert({player_id:currentUser.id,group_id:group.id,is_admin:false},{onConflict:"player_id,group_id"});
+              const{error}=await supabase.from("player_groups").upsert({player_id:currentUser.id,group_id:group.id,is_admin:false},{onConflict:"player_id,group_id"});
+              if(error){ showToast("Erro ao adicionar grupo","err"); setLoading(false); return; }
               // Atualizar group_id do player se ainda não tiver
               if(!currentUser.group_id) await supabase.from("players").update({group_id:group.id}).eq("id",currentUser.id);
-              showToast(`${group.name} adicionado aos teus grupos! 🎉`);
+              showToast(`${group.name} adicionado! 🎉`);
+              // Pequena pausa para garantir que a BD atualizou
+              await new Promise(r=>setTimeout(r,500));
               setLoading(false);
               if(onGrupoAdicionado) onGrupoAdicionado();
               else setView("landing");
