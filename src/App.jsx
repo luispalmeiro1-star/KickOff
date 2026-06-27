@@ -544,7 +544,19 @@ export default function App() {
       <style>{getCss()}</style>
       {toast&&<div className={`toast toast-${toast.type}`}>{toast.msg}</div>}
       {view==="landing"        && <LandingView setView={setView}/>}
-      {view==="meus-grupos"    && <MeusGruposView groups={myGroups} onSelect={async(groupId)=>{ localStorage.setItem("hhb_session",JSON.stringify({playerId:currentUser.id,groupId})); window.location.reload(); }} onLogout={handleLogout} onCriarGrupo={()=>{ setCurrentUser(null); setView("criar-grupo"); }} onEntrarCodigo={()=>setView("entrar-convite")} currentUser={currentUser}/>}
+      {view==="meus-grupos"    && <MeusGruposView groups={myGroups} onSelect={async(groupId)=>{
+        // Guardar nova sessão com groupId
+        localStorage.setItem("hhb_session",JSON.stringify({playerId:currentUser.id,groupId}));
+        // Atualizar ref e recarregar dados do novo grupo
+        groupIdRef.current=groupId;
+        setPlayers([]);
+        setGameInfo({location:"",date:nextWednesday(),time:"22:30",app_name:"Hoje Há Jogo",cost_per_player:3});
+        setHistory([]); setDebts([]); setMessages([]); setMvpVotes([]); setAttendance([]);
+        await reloadAll(groupId);
+        // Determinar se é admin neste grupo
+        const{data:pg}=await supabase.from("player_groups").select("is_admin").eq("player_id",currentUser.id).eq("group_id",groupId).maybeSingle();
+        setView(pg?.is_admin?"admin":"player");
+      }} onLogout={handleLogout} onCriarGrupo={()=>{ setCurrentUser(null); setView("criar-grupo"); }} onEntrarCodigo={()=>setView("entrar-convite")} currentUser={currentUser}/>}
       {view==="login"          && <LoginView onLogin={handleLogin} showToast={showToast} setView={setView}/>}
       {view==="criar-grupo"    && <CriarGrupoView setView={setView} showToast={showToast} onLogin={handleLogin} reloadAll={reloadAll}/>}
       {view==="entrar-convite" && <EntrarConviteView setView={setView} showToast={showToast} currentUser={currentUser} onGrupoAdicionado={async()=>{ if(currentUser){ const{data:pg}=await supabase.from("player_groups").select("group_id, is_admin, groups(id,name,location,time)").eq("player_id",currentUser.id); setMyGroups(pg||[]); setView("meus-grupos"); }else setView("landing"); }}/>}
