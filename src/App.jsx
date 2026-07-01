@@ -369,7 +369,8 @@ export default function App() {
       // Buscar dados dos grupos separadamente
       const groupIds=playerGroups.map(pg=>pg.group_id);
       const{data:groupsData}=await supabase.from("groups").select("id,name,location,time").in("id",groupIds);
-      const enriched=playerGroups.map(pg=>({...pg,groups:groupsData?.find(g=>g.id===pg.group_id)||null}));
+      const enriched=playerGroups.map(pg=>({...pg,groups:groupsData?.find(g=>Number(g.id)===Number(pg.group_id))||null}));
+      alert("grupos: " + JSON.stringify(enriched.map(x=>x.group_id)));
       setMyGroups(enriched);
       setView("meus-grupos");
       localStorage.setItem("hhb_session",JSON.stringify({playerId:p.id,groupId:null}));
