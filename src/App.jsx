@@ -556,6 +556,7 @@ export default function App() {
       {view==="landing"        && <LandingView setView={setView}/>}
       {view==="meus-grupos"    && <MeusGruposView groups={myGroups} onSelect={async(groupId)=>{
         const gid = Number(groupId);
+        alert("A entrar no grupo: " + gid);
         localStorage.setItem("hhb_session",JSON.stringify({playerId:Number(currentUser?.id),groupId:gid}));
         window.location.reload();
       }} onLogout={handleLogout} onCriarGrupo={()=>{ setCurrentUser(null); setView("criar-grupo"); }} onEntrarCodigo={()=>setView("entrar-convite")} currentUser={currentUser}/>}
