@@ -1949,8 +1949,7 @@ function MeusGruposView({groups=[], onSelect, onLogout, onCriarGrupo, onEntrarCo
         {/* Lista de grupos */}
         <div style={{display:"flex",flexDirection:"column",gap:10,marginBottom:16}}>
           {groups.map((pg,i)=>{
-            const group=pg.groups;
-            if(!group) return null;
+            const group=pg.groups||{id:pg.group_id,name:"Grupo "+pg.group_id,location:"",time:""};
             return (
               <button key={i} onClick={async()=>{
                 setLoading(pg.group_id);
