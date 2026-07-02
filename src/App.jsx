@@ -186,12 +186,18 @@ export default function App() {
 
   const loadPlayers    = useCallback(async(gid)=>{
     if(!gid) return;
-    // Buscar players via player_groups para suportar jogadores em múltiplos grupos
-    const{data:pg}=await supabase.from("player_groups").select("player_id").eq("group_id",gid);
+    // Buscar players via player_groups — status é por grupo
+    const{data:pg}=await supabase.from("player_groups").select("player_id,status,paid,confirmed_at,team,is_admin").eq("group_id",gid);
     if(!pg||pg.length===0){ setPlayers([]); return; }
     const pids=pg.map(x=>x.player_id);
-    const{data}=await supabase.from("players").select("*").in("id",pids).order("id");
-    if(data) setPlayers(data);
+    const{data:playersData}=await supabase.from("players").select("*").in("id",pids).order("id");
+    if(!playersData) return;
+    // Merge: dados do player + status do grupo
+    const merged=playersData.map(p=>{
+      const pgRow=pg.find(x=>x.player_id===p.id);
+      return {...p, status:pgRow?.status||"out", paid:pgRow?.paid||false, confirmed_at:pgRow?.confirmed_at||null, team:pgRow?.team||null, is_admin:pgRow?.is_admin||false};
+    });
+    setPlayers(merged);
   },[]);
   const loadGameInfo   = useCallback(async(gid)=>{ const{data}=await supabase.from("game_info").select("*").eq("group_id",gid).limit(1).maybeSingle(); if(data)setGameInfo(data); },[]);
   const loadHistory    = useCallback(async(gid)=>{ const{data}=await supabase.from("game_history").select("*").eq("group_id",gid).order("date",{ascending:false}); if(data){setHistory(data);setPiggybank(data.reduce((s,g)=>s+(Number(g.collected)||0)-(g.players_count>0?RENT:0),0));} },[]);
@@ -397,7 +403,7 @@ export default function App() {
     const teamMap=assignTeams(newConfirmed);
     const finalPlayers=updatedPlayers.map(pl=>({...pl,team:teamMap[pl.id]||null}));
     setPlayers(finalPlayers);
-    for(const pl of finalPlayers) await supabase.from("players").update({team:teamMap[pl.id]||null}).eq("id",pl.id);
+    for(const pl of finalPlayers) await supabase.from("player_groups").update({team:teamMap[pl.id]||null}).eq("player_id",pl.id).eq("group_id",activeGroupId);
     return finalPlayers;
   };
 
@@ -407,7 +413,8 @@ export default function App() {
     if(p.status==="in"||p.status==="wait"){ns="out";na=null;}
     else if(confirmed.length<MAX_PLAYERS){ns="in";na=Date.now();}
     else{ns="wait";na=Date.now();showToast("Jogo cheio! ⏳","warn");}
-    await supabase.from("players").update({status:ns,confirmed_at:na,paid:false}).eq("id",playerId);
+    // Atualizar status no player_groups (por grupo)
+    await supabase.from("player_groups").update({status:ns,confirmed_at:na,paid:false}).eq("player_id",playerId).eq("group_id",activeGroupId);
     await reassignAllTeams(players.map(pl=>pl.id===playerId?{...pl,status:ns,confirmed_at:na,paid:false}:pl));
   };
   const addGuest = async(guestName,invitedById)=>{
@@ -419,7 +426,7 @@ export default function App() {
     showToast(`${guestName} adicionado! 🎉`);
   };
   const removeGuest    = async(id)=>{ await supabase.from("players").delete().eq("id",id); await reassignAllTeams(players.filter(p=>p.id!==id)); showToast("Convidado removido"); };
-  const togglePaid     = async(id)=>{ const p=players.find(pl=>pl.id===id); setPlayers(prev=>prev.map(pl=>pl.id===id?{...pl,paid:!p.paid}:pl)); await supabase.from("players").update({paid:!p.paid}).eq("id",id); showToast("Pagamento atualizado ✓"); };
+  const togglePaid     = async(id)=>{ const p=players.find(pl=>pl.id===id); setPlayers(prev=>prev.map(pl=>pl.id===id?{...pl,paid:!p.paid}:pl)); await supabase.from("player_groups").update({paid:!p.paid}).eq("player_id",id).eq("group_id",activeGroupId); showToast("Pagamento atualizado ✓"); };
   const removePlayer   = async(id)=>{ setPlayers(prev=>prev.filter(p=>p.id!==id)); await supabase.from("players").delete().eq("id",id); showToast("Jogador removido"); };
   const changePassword = async(id,pw)=>{ await supabase.from("players").update({password:pw}).eq("id",id); };
   const addPlayer      = async(name,username,password,phone)=>{
@@ -485,8 +492,8 @@ export default function App() {
     let mvpName=null;
     if(votes.length>0){ const counts={}; votes.forEach(v=>{counts[v.voted_for_id]=(counts[v.voted_for_id]||0)+1;}); const topId=Object.keys(counts).sort((a,b)=>counts[b]-counts[a])[0]; mvpName=players.find(p=>p.id===Number(topId))?.name||null; }
     if(collected>0||confirmed.length>0) await supabase.from("game_history").insert({date:gameInfo.date,players_count:confirmed.length,collected,winner_team:isAuto?null:winnerTeam||null,mvp_name:mvpName,group_id:gid});
-    await supabase.from("players").delete().eq("is_guest",true).eq("group_id",gid);
-    if(gid) await supabase.from("players").update({status:"out",paid:false,confirmed_at:null,team:null}).eq("is_guest",false).eq("group_id",gid);
+    await supabase.from("player_groups").delete().eq("group_id",gid).eq("is_guest",true);
+    await supabase.from("player_groups").update({status:"out",paid:false,confirmed_at:null,team:null}).eq("group_id",gid).neq("is_admin",true).or("is_admin.eq.true");
     const{data:grp}=gid?await supabase.from("groups").select("game_days").eq("id",gid).maybeSingle():{data:null};
     const gameDays=grp?.game_days||[3];
     const nextDate=getNextGameDate(gameDays);
