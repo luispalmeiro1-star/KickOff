@@ -184,7 +184,15 @@ export default function App() {
   const showToast = (msg,type="ok") => { setToast({msg,type}); setTimeout(()=>setToast(null),3000); };
   const groupIdRef = useRef(null);
 
-  const loadPlayers    = useCallback(async(gid)=>{ const q=supabase.from("players").select("*").order("id"); const{data}=gid?await q.eq("group_id",gid):await q; if(data)setPlayers(data); },[]);
+  const loadPlayers    = useCallback(async(gid)=>{
+    if(!gid) return;
+    // Buscar players via player_groups para suportar jogadores em múltiplos grupos
+    const{data:pg}=await supabase.from("player_groups").select("player_id").eq("group_id",gid);
+    if(!pg||pg.length===0){ setPlayers([]); return; }
+    const pids=pg.map(x=>x.player_id);
+    const{data}=await supabase.from("players").select("*").in("id",pids).order("id");
+    if(data) setPlayers(data);
+  },[]);
   const loadGameInfo   = useCallback(async(gid)=>{ const{data}=await supabase.from("game_info").select("*").eq("group_id",gid).limit(1).maybeSingle(); if(data)setGameInfo(data); },[]);
   const loadHistory    = useCallback(async(gid)=>{ const{data}=await supabase.from("game_history").select("*").eq("group_id",gid).order("date",{ascending:false}); if(data){setHistory(data);setPiggybank(data.reduce((s,g)=>s+(Number(g.collected)||0)-(g.players_count>0?RENT:0),0));} },[]);
   const loadDebts      = useCallback(async(gid)=>{ const{data}=await supabase.from("debts").select("*").eq("group_id",gid).order("created_at"); if(data)setDebts(data); },[]);
